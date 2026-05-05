@@ -50,8 +50,6 @@ def _help(manager=None):
     t.append("某人的完整人生时间线\n", style="dim")
     t.append("  人物 / entities    ", style="cyan")
     t.append("特殊人物\n", style="dim")
-    t.append("  变异 / mutations   ", style="cyan")
-    t.append("活跃变异（全自主，无需玩家触发）\n", style="dim")
     t.append("  神话 / myths       ", style="cyan")
     t.append("世界神话库\n", style="dim")
     t.append("  祈祷 / prayers     ", style="cyan")
@@ -173,9 +171,6 @@ def run():
 
         elif cmd in ("人物", "entities", "entity"):
             sim.player_query(lambda: display.render_entities(manager.active_entities))
-
-        elif cmd in ("变异", "mutations", "mut"):
-            sim.player_query(lambda: display.render_mutations(manager.world))
 
         elif cmd in ("神话", "myths"):
             sim.player_query(lambda: display.render_myths(manager.myths))

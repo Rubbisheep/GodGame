@@ -74,7 +74,16 @@ def render_status(world, pool, loader):
     tend = "、".join(world.dominant_tendencies()) or "无"
     right.append(f"  掌握  {tags}\n", style="dim")
     right.append(f"  倾向  {tend}\n", style="dim")
-    right.append(f"  变异  {len(world.active_mutations)} 处\n", style="dim")
+    if world.active_mutations:
+        tier_symbols = {1: ("◌", "grey70"), 2: ("●", "yellow"), 3: ("⬡", "bright_red")}
+        right.append("  变异  ", style="dim")
+        for m in world.active_mutations:
+            sym, style = tier_symbols.get(m.tier, ("?", "white"))
+            right.append(sym, style=style)
+            right.append(f" {m.target_name}  ", style="dim")
+        right.append("\n")
+    else:
+        right.append("  变异  无\n", style="dim")
     if loader.active_names():
         right.append(f"  模块  {', '.join(loader.active_names())}", style="green dim")
     if loader.broken_names():
