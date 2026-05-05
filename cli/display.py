@@ -12,7 +12,7 @@ from rich import box
 
 console = Console(highlight=False)
 
-_MAP_W, _MAP_H = 50, 12
+_MAP_W, _MAP_H = 30, 10
 
 # ── 内部工具 ────────────────────────────────────────────────────────────────
 
@@ -48,11 +48,10 @@ def _name_pos(name: str, w: int, h: int) -> tuple[int, int]:
 
 def _terrain(x: int, y: int, seed: int) -> tuple[str, str]:
     h = int(hashlib.md5(f"{x},{y},{seed // 8}".encode()).hexdigest(), 16) % 100
-    if h < 7:   return "≈", "blue"
-    if h < 18:  return "♦", "green"
-    if h < 25:  return "△", "yellow"
-    if h < 31:  return "░", "grey50"
-    return "·", "grey35"
+    if h < 8:   return "≈", "blue"       # 水域
+    if h < 20:  return "▪", "green"      # 林地
+    if h < 27:  return "▲", "yellow"     # 山地
+    return " ", "grey35"                  # 平原（留空更清晰）
 
 
 # ── 渲染函数 ─────────────────────────────────────────────────────────────────
@@ -94,13 +93,9 @@ def render_status(world, pool, loader):
 
 
 def render_world_map(world, pool):
-    """
-    程序生成的世界感知图。
-    地形基于世界年份随机，NPC 按名字哈希定位，变异标注在地图上。
-    """
-    # 建立网格
-    grid_char: list[list[str]] = [["" for _ in range(_MAP_W)] for _ in range(_MAP_H)]
-    grid_style: list[list[str]] = [["" for _ in range(_MAP_W)] for _ in range(_MAP_H)]
+    """世界感知图：左侧地图 + 右侧居民名单。"""
+    grid_char: list[list[str]] = [[" " for _ in range(_MAP_W)] for _ in range(_MAP_H)]
+    grid_style: list[list[str]] = [["grey35" for _ in range(_MAP_W)] for _ in range(_MAP_H)]
 
     seed = world.world_year
     for y in range(_MAP_H):
@@ -109,48 +104,59 @@ def render_world_map(world, pool):
             grid_char[y][x] = ch
             grid_style[y][x] = st
 
-    # 放置变异标记
-    mut_markers = {1: ("◌", "grey70"), 2: ("●", "yellow"), 3: ("⬡", "bright_red")}
+    # 变异标记
+    mut_symbols = {1: ("◌", "grey70"), 2: ("●", "yellow"), 3: ("⬡", "bright_red")}
     for i, m in enumerate(world.active_mutations):
         mh = int(hashlib.md5(f"{m.mutation_id}{i}".encode()).hexdigest(), 16)
         mx, my = (mh * 7) % _MAP_W, ((mh * 13) >> 8) % _MAP_H
-        ch, st = mut_markers.get(m.tier, ("?", "white"))
-        grid_char[my][mx] = ch
-        grid_style[my][mx] = st
+        grid_char[my][mx], grid_style[my][mx] = mut_symbols.get(m.tier, ("?", "white"))
 
-    # 放置 NPC（覆盖地形）
+    # NPC：按信仰显示不同颜色，祈祷中显示 ✦
     for p in pool.living:
         px, py = _name_pos(p.name, _MAP_W - 2, _MAP_H)
-        label = p.name[0]
-        grid_char[py][px] = label
-        grid_style[py][px] = "bright_cyan" if p.faith_in_god > 0.3 else "cyan"
-        if p.prayer_pending and py + 1 < _MAP_H:
-            grid_char[py][min(px + 1, _MAP_W - 1)] = "✦"
-            grid_style[py][min(px + 1, _MAP_W - 1)] = "yellow"
+        if p.prayer_pending:
+            grid_char[py][px] = "✦"
+            grid_style[py][px] = "bold yellow"
+        else:
+            grid_char[py][px] = p.name[0]
+            grid_style[py][px] = "bold bright_cyan" if p.faith_in_god > 0.3 else "bold white"
 
-    # 渲染
+    # 渲染地图
     map_text = Text()
     for row_c, row_s in zip(grid_char, grid_style):
-        map_text.append("  ")
+        map_text.append(" ")
         for ch, st in zip(row_c, row_s):
             map_text.append(ch + " ", style=st)
         map_text.append("\n")
 
-    legend = Text("\n  · 平原  ", style="grey35")
-    legend.append("≈ 河流  ", style="blue")
-    legend.append("♦ 林地  ", style="green")
-    legend.append("△ 山地  ", style="yellow")
-    legend.append("◌ 表层变异  ", style="grey70")
-    legend.append("● 功能变异  ", style="yellow")
-    legend.append("⬡ 本质变异  ", style="bright_red")
-    legend.append("[字母] 命名居民  ", style="cyan")
-    legend.append("✦ 祈祷中", style="yellow")
+    legend = Text("\n ")
+    legend.append("  平原", style="grey35")
+    legend.append("  ≈ 水域", style="blue")
+    legend.append("  ▪ 林地", style="green")
+    legend.append("  ▲ 山地", style="yellow")
+    legend.append("  ⬡ 变异", style="bright_red")
+    legend.append("  ✦ 祈祷", style="yellow")
 
-    console.print(Panel(
-        Text.assemble(map_text, legend),
-        title=f"[bold]世界感知图[/bold]  {world.year_display()} · {world.current_era}",
-        border_style="dim",
-    ))
+    # 居民名单（右侧面板）
+    roster = Text()
+    roster.append("  居民\n\n", style="bold dim")
+    for p in sorted(pool.living, key=lambda x: x.birth_year):
+        bar = "█" * int(p.faith_in_god * 5) + "░" * (5 - int(p.faith_in_god * 5))
+        flag = "✦" if p.prayer_pending else ("★" if p.is_notable else " ")
+        name_style = "yellow" if p.prayer_pending else ("bright_white" if p.is_notable else "white")
+        roster.append(f" {flag} {p.name}", style=name_style)
+        roster.append(f"  [{bar}]\n", style="cyan dim")
+    if pool.archived:
+        roster.append(f"\n  已故 {len(pool.archived)} 人", style="dim")
+
+    left = Panel(Text.assemble(map_text, legend), border_style="dim", padding=(0, 0))
+    right = Panel(roster, border_style="dim", padding=(0, 0))
+
+    console.print(
+        f"  [bold]世界感知图[/bold]  "
+        f"[dim]{world.year_display()} · {world.current_era}[/dim]"
+    )
+    console.print(Columns([left, right], equal=False))
 
 
 def render_population_table(pool, world):
