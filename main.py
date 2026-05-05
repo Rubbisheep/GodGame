@@ -68,12 +68,14 @@ def _help(manager=None):
     display.console.print(Panel(t, title="[bold]指令列表[/bold]", border_style="dim"))
 
 
-def _flush_events(sim: WorldSimulator, manager: StateManager, auto_status: bool = True):
+def _flush_events(sim: WorldSimulator, manager: StateManager,
+                  cursor: list, auto_status: bool = True):
     events, bg_ticked = sim.drain()
     if events:
         display.console.print()
         for e in events:
             display.print_event(e)
+        cursor[0] = len(manager.event_log)  # 标记已读
         if auto_status and bg_ticked:
             display.print_divider()
             sim.player_query(
@@ -105,7 +107,10 @@ def run():
     sim = WorldSimulator(manager)
     sim.start(catchup_years=catchup)
 
-    _flush_events(sim, manager, auto_status=False)
+    cursor = [0]  # 故事已读游标
+
+    _flush_events(sim, manager, cursor, auto_status=False)
+    cursor[0] = len(manager.event_log)  # 开局事件标记为已读
 
     sim.player_query(
         lambda: display.render_status(manager.world, manager.pool, manager.loader)
@@ -113,7 +118,7 @@ def run():
     _help(manager)
 
     while True:
-        _flush_events(sim, manager)
+        _flush_events(sim, manager, cursor)
 
         try:
             raw = input("\n> ").strip()
@@ -125,7 +130,7 @@ def run():
         if not raw:
             continue
 
-        _flush_events(sim, manager)
+        _flush_events(sim, manager, cursor)
 
         parts = raw.split(maxsplit=2)
         cmd = parts[0]
@@ -175,7 +180,11 @@ def run():
             sim.player_query(lambda: display.render_entities(manager.active_entities))
 
         elif cmd in ("故事", "story", "log"):
-            sim.player_query(lambda: display.render_story(manager.event_log))
+            def _show_story():
+                new_events = manager.event_log[cursor[0]:]
+                display.render_story(new_events)
+                cursor[0] = len(manager.event_log)
+            sim.player_query(_show_story)
 
         elif cmd in ("神话", "myths"):
             sim.player_query(lambda: display.render_myths(manager.myths))
