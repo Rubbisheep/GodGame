@@ -217,17 +217,17 @@ class StateManager:
             t, name, proposer = result["type"], result["name"], result.get("proposer", "")
             if t == "fix":
                 narrative = get_fix_narrative(name, self.world, self.pool)
-                notices.append(f"\n  [织体修复] {narrative}")
+                notices.append(f"\n  [法则修复] {narrative}")
             elif t == "upgrade":
                 narrative = get_upgrade_narrative(name, proposer, self.world, self.pool)
                 notices.append(f"\n  [系统进化] {narrative}")
             else:
-                notices.append(f"\n  [织体异常延续] {name} 的异常仍未解决。")
+                notices.append(f"\n  [法则异常延续] {name} 的异常仍未解决。")
 
         for msg, module_name in self.loader.run_turn_end(self):
             if msg == "__crash__":
                 err_result = get_error_narrative(module_name, "", self.world, self.pool)
-                notices.append(f"\n  [织体异常] {err_result.get('narrative', '世界出现了裂缝。')}")
+                notices.append(f"\n  [法则异常] {err_result.get('narrative', '世界出现了裂缝。')}")
                 if err_result.get("npc_reaction"):
                     notices.append(f"    {err_result['npc_reaction']}")
                 notices.append("    （正在修复中……）")

@@ -166,7 +166,7 @@ def get_error_narrative(module_name: str, error: str, world_state, pool) -> dict
     try:
         return json.loads(call(system, user, max_tokens=200))
     except Exception:
-        return {"narrative": "世界的织体出现了短暂的撕裂。", "npc_reaction": ""}
+        return {"narrative": "世界的法则出现了短暂的撕裂。", "npc_reaction": ""}
 
 
 def get_fix_narrative(module_name: str, world_state, pool) -> str:

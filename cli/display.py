@@ -85,9 +85,9 @@ def render_status(world, pool, loader):
     else:
         right.append("  变异  无\n", style="dim")
     if loader.active_names():
-        right.append(f"  织体  {', '.join(loader.active_names())}", style="green dim")
+        right.append(f"  法则  {', '.join(loader.active_names())}", style="green dim")
     if loader.broken_names():
-        right.append(f"\n  织体裂缝  {', '.join(loader.broken_names())}", style="red dim")
+        right.append(f"\n  法则裂缝  {', '.join(loader.broken_names())}", style="red dim")
 
     prayers = [p for p in pool.living if p.prayer_pending]
     if prayers:
@@ -298,7 +298,7 @@ def render_modules(loader):
     active = loader.active_names()
     broken = loader.broken_names()
     if not active and not broken:
-        console.print(Panel("  （世界尚无织体涌现）", title="织体", border_style="dim"))
+        console.print(Panel("  （世界尚无法则涌现）", title="法则", border_style="dim"))
         return
     content = Text()
     for n in active:
@@ -307,7 +307,7 @@ def render_modules(loader):
         content.append(desc + "\n", style="dim")
     for n in broken:
         content.append(f"  ✗ {n}（修复中）\n", style="red")
-    console.print(Panel(content, title="织体", border_style="dim"))
+    console.print(Panel(content, title="法则", border_style="dim"))
 
 
 def render_entities(active_entities: list):
@@ -338,6 +338,41 @@ def render_story(new_events: list):
     print_divider()
 
 
+def render_dialogue(person, result: dict):
+    """展示神明传话的回应。"""
+    heard = result.get("heard", False)
+    speech = result.get("speech", "")
+    action = result.get("action", "")
+    faith_delta = result.get("faith_delta", 0.0)
+
+    t = Text()
+    t.append(f"  【{person.name}】\n", style="bold bright_white")
+    if not heard:
+        t.append("  （没有感知到神明的存在）\n", style="dim")
+    else:
+        t.append(f"  「{speech}」\n", style="italic white")
+        t.append(f"\n  → {action}\n", style="dim")
+        if faith_delta > 0:
+            t.append(f"  信仰 +{faith_delta:.0%}", style="cyan dim")
+        elif faith_delta < 0:
+            t.append(f"  信仰 {faith_delta:.0%}", style="red dim")
+    console.print(Panel(t, border_style="magenta dim"))
+
+
+def render_oracle(question: str, result: dict):
+    """展示神明自询的回答。"""
+    known = result.get("known", False)
+    answer = result.get("answer", "")
+    t = Text()
+    t.append(f"  问：{question}\n\n", style="dim")
+    if known:
+        t.append(f"  {answer}", style="italic white")
+    else:
+        t.append(f"  {answer}", style="italic dim")
+    console.print(Panel(t, title="[bold]神明自询[/bold]",
+                        border_style="magenta dim" if known else "dim"))
+
+
 def print_event(text: str):
     """打印世界事件流（带样式）。"""
     if not text.strip():
@@ -350,7 +385,7 @@ def print_event(text: str):
         console.print(text, style="yellow")
     elif "[变异" in text or "扩散" in text:
         console.print(text, style="yellow dim")
-    elif "[织体异常]" in text or "[崩溃]" in text:
+    elif "[法则异常]" in text or "[崩溃]" in text:
         console.print(text, style="red")
     elif "[涌现]" in text or "[系统进化]" in text:
         console.print(text, style="bright_green")

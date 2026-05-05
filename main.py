@@ -13,7 +13,7 @@ from rich.text import Text
 from state_manager import StateManager, SAVE_FILE, GIFT_ABSORB_YEARS, MIRACLE_COOLDOWN_YEARS
 from core.models import MIRACLE_COST, GIFT_COST
 from core.simulator import WorldSimulator, calc_catchup_years
-from llm import generate_life_snapshot
+from llm import generate_life_snapshot, generate_npc_dialogue, generate_oracle_query
 import cli.display as display
 
 
@@ -39,6 +39,10 @@ def _help(manager=None):
     t.append("神力50  ", style="dim")
     t.append(miracle_label, style=miracle_style)
     t.append("  例：施放 丰收 / cast 瘟疫治愈\n", style="dim italic")
+    t.append("  传话 / talk   <名字> <内容>  ", style="cyan")
+    t.append("向某人传达神明意志（先知/使徒最敏感）\n", style="dim")
+    t.append("  问   / ask    <问题>        ", style="cyan")
+    t.append("以神明所见为据，回溯世界的脉络\n", style="dim")
     t.append("  回应 / respond <名字> <类型>", style="cyan")
     t.append("  类型：答应 / 无视 / 惩戒 / 赐福\n", style="dim")
     t.append("  凝视 / gaze   <名字或地点>  ", style="cyan")
@@ -61,8 +65,8 @@ def _help(manager=None):
     t.append("世界神话库\n", style="dim")
     t.append("  祈祷 / prayers     ", style="cyan")
     t.append("当前等待回应的祈祷\n", style="dim")
-    t.append("  织体 / weave       ", style="cyan")
-    t.append("世界自然涌现的织体法则\n\n", style="dim")
+    t.append("  法则 / weave       ", style="cyan")
+    t.append("世界自然涌现的法则法则\n\n", style="dim")
 
     t.append("  退出 / quit / exit", style="dim")
 
@@ -191,7 +195,9 @@ def run():
                     f"\n  [bold]此刻的世界[/bold]  [dim]{year_str}[/dim]"
                 )
                 display.print_divider()
-                snapshot = generate_life_snapshot(manager.world, manager.pool)
+                snapshot = generate_life_snapshot(
+                    manager.world, manager.pool, manager.event_log[-20:]
+                )
                 display.console.print(f"\n{snapshot}\n", style="italic")
                 display.print_divider()
             sim.player_query(_show_story)
@@ -204,7 +210,7 @@ def run():
                 lambda: display.render_prayers(manager.pool.pending_prayers())
             )
 
-        elif cmd in ("织体", "weave", "modules"):
+        elif cmd in ("法则", "weave", "modules"):
             sim.player_query(lambda: display.render_modules(manager.loader))
 
         # ── 干预指令（推进回合）──────────────────────────────────────────────
@@ -258,6 +264,44 @@ def run():
             sim.player_query(
                 lambda: display.render_status(manager.world, manager.pool, manager.loader)
             )
+
+        elif cmd in ("传话", "talk"):
+            if not arg1 or not arg2:
+                display.console.print(
+                    "  用法：传话 <名字> <内容>  /  talk <名字> <内容>", style="dim"
+                )
+                continue
+            def _do_talk(name=arg1, msg=arg2):
+                person = manager.pool.get_by_name(name)
+                if not person or not person.is_alive():
+                    display.console.print(f"  未找到活着的「{name}」。", style="red dim")
+                    return
+                display.print_divider()
+                display.console.print(
+                    f"  [dim]你向 {person.name} 传达：「{msg}」[/dim]"
+                )
+                result = generate_npc_dialogue(person, msg, manager.world, manager.pool)
+                faith_delta = result.get("faith_delta", 0.0)
+                person.faith_in_god = max(0.0, min(1.0, person.faith_in_god + faith_delta))
+                action = result.get("action", "")
+                if action:
+                    person.add_event(manager.world.world_year, "divine", action)
+                display.render_dialogue(person, result)
+            sim.player_query(_do_talk)
+            continue
+
+        elif cmd in ("问", "ask", "oracle"):
+            if not arg1:
+                display.console.print("  用法：问 <问题>  /  ask <问题>", style="dim")
+                continue
+            question = arg1 + (" " + arg2 if arg2 else "")
+            def _do_ask(q=question):
+                result = generate_oracle_query(
+                    q, manager.world, manager.event_log, manager.myths
+                )
+                display.render_oracle(q, result)
+            sim.player_query(_do_ask)
+            continue
 
         elif cmd in ("凝视", "gaze"):
             if not arg1:
