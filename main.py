@@ -44,6 +44,8 @@ def _help(manager=None):
     t.append("深度洞察，不消耗回合\n\n", style="dim")
 
     t.append("── 查看 ──\n", style="bold dim")
+    t.append("  故事 / story       ", style="cyan")
+    t.append("实时查看当前世界事件流\n", style="dim")
     t.append("  状态 / status / s  ", style="cyan")
     t.append("世界概况（神力·人口·倾向）\n", style="dim")
     t.append("  地图 / map    / m  ", style="cyan")
@@ -171,6 +173,9 @@ def run():
 
         elif cmd in ("人物", "entities", "entity"):
             sim.player_query(lambda: display.render_entities(manager.active_entities))
+
+        elif cmd in ("故事", "story", "log"):
+            sim.player_query(lambda: display.render_story(manager.event_log))
 
         elif cmd in ("神话", "myths"):
             sim.player_query(lambda: display.render_myths(manager.myths))

@@ -326,6 +326,18 @@ def render_entities(active_entities: list):
     console.print(Panel(content, title="特殊人物", border_style="dim"))
 
 
+def render_story(event_log: list, n: int = 30):
+    """显示最近 n 条世界事件，随时可查。"""
+    if not event_log:
+        console.print(Panel("  （世界尚无记录）", title="世界故事", border_style="dim"))
+        return
+    console.print(f"\n  [bold]世界故事[/bold]  [dim]最近 {min(n, len(event_log))} 条记录[/dim]")
+    print_divider()
+    for entry in event_log[-n:]:
+        print_event(entry)
+    print_divider()
+
+
 def print_event(text: str):
     """打印世界事件流（带样式）。"""
     if not text.strip():
