@@ -2,18 +2,19 @@
 《无名之界》— 命令行神明模拟器
 
 指令：
-  赐予 <物品>       消耗10信仰，赐予部落一件物品
-  施放 <奇迹>       消耗50信仰，降下神迹
-  回应 <名字> <类型> 回应NPC的祈祷 (类型: 答应/无视/惩戒/赐福)
-  凝视 <名字/地点>  深度洞察某人或某地
-  状态              世界概况
-  人群              命名居民列表
-  人 <名字>         查看某人的完整人生事件流
-  人物              特殊人物
-  变异              活跃变异
-  神话              世界神话库
-  模块              自生成扩展系统
-  祈祷              查看当前祈祷列表
+  赐予 <物品>        消耗10神力，赐予部落一件物品
+  施放 <奇迹>        消耗50神力，降下神迹
+  回应 <名字> <类型>  回应NPC的祈祷 (类型: 答应/无视/惩戒/赐福)
+  凝视 <名字/地点>   深度洞察某人或某地
+  状态               世界概况
+  地图               世界感知图
+  人群               命名居民列表
+  人 <名字>          查看某人的完整人生事件流
+  人物               特殊人物
+  变异               活跃变异
+  神话               世界神话库
+  模块               自生成扩展系统
+  祈祷               查看当前祈祷列表
   帮助 / 退出
 """
 import sys
@@ -21,99 +22,101 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-from pathlib import Path
-from state_manager import StateManager, SAVE_FILE
-from models import MIRACLE_COST, GIFT_COST
-from simulator import WorldSimulator, calc_catchup_years
+from rich.panel import Panel
+from rich.text import Text
 
-DIV = "─" * 56
+from state_manager import StateManager, SAVE_FILE
+from core.models import MIRACLE_COST, GIFT_COST
+from core.simulator import WorldSimulator, calc_catchup_years
+import cli.display as display
 
 
 def _help():
-    print(
-        "\n指令："
-        "\n  赐予 <物品>        — 将神力凝结为实物降入人间（消耗10神力）"
-        "\n  施放 <奇迹>        — 以神力直接干预世界法则（消耗50神力）"
-        "\n  回应 <名字> <类型> — 回应祈祷（类型：答应/无视/惩戒/赐福）"
-        "\n  凝视 <名字/地点>   — 深度洞察某人或某地（不消耗回合）"
-        "\n  状态               — 世界概况（含当前神力）"
-        "\n  人群               — 命名居民列表"
-        "\n  人 <名字>          — 某人的完整人生事件流"
-        "\n  人物               — 特殊人物"
-        "\n  变异               — 活跃变异"
-        "\n  神话               — 世界神话库"
-        "\n  模块               — 世界自生成扩展系统"
-        "\n  祈祷               — 当前祈祷列表"
-        "\n\n  神力：你行使意志的能量。每年自然积累，居民的信仰会加速积累。"
-        "\n  初始神力20；赐予消耗10，施放消耗50。他们目前还不知道你的存在。"
-    )
+    t = Text()
+    t.append("  赐予 <物品>        ", style="cyan")
+    t.append("— 将神力凝结为实物降入人间（消耗10神力）\n", style="dim")
+    t.append("  施放 <奇迹>        ", style="cyan")
+    t.append("— 以神力直接干预世界法则（消耗50神力）\n", style="dim")
+    t.append("  回应 <名字> <类型> ", style="cyan")
+    t.append("— 回应祈祷（类型：答应/无视/惩戒/赐福）\n", style="dim")
+    t.append("  凝视 <名字/地点>   ", style="cyan")
+    t.append("— 深度洞察某人或某地（不消耗回合）\n", style="dim")
+    t.append("  状态               ", style="cyan")
+    t.append("— 世界概况（含当前神力）\n", style="dim")
+    t.append("  地图               ", style="cyan")
+    t.append("— 世界感知图\n", style="dim")
+    t.append("  人群               ", style="cyan")
+    t.append("— 命名居民列表\n", style="dim")
+    t.append("  人 <名字>          ", style="cyan")
+    t.append("— 某人的完整人生事件流\n", style="dim")
+    t.append("  人物               ", style="cyan")
+    t.append("— 特殊人物\n", style="dim")
+    t.append("  变异               ", style="cyan")
+    t.append("— 活跃变异\n", style="dim")
+    t.append("  神话               ", style="cyan")
+    t.append("— 世界神话库\n", style="dim")
+    t.append("  模块               ", style="cyan")
+    t.append("— 世界自生成扩展系统\n", style="dim")
+    t.append("  祈祷               ", style="cyan")
+    t.append("— 当前祈祷列表\n\n", style="dim")
+    t.append("  神力：你行使意志的能量。每年自然积累，居民的信仰会加速积累。\n", style="italic dim")
+    t.append("  初始神力20；赐予消耗10，施放消耗50。他们目前还不知道你的存在。", style="italic dim")
+    display.console.print(Panel(t, title="[bold]指令列表[/bold]", border_style="dim"))
 
 
 def _flush_events(sim: WorldSimulator):
-    """打印所有后台积累的世界事件。"""
     events = sim.drain()
     if events:
-        print()
+        display.console.print()
         for e in events:
-            if e.strip():
-                print(e)
+            display.print_event(e)
 
 
 def run():
-    print(f"\n{DIV}")
-    print("  《无名之界》")
-    print(DIV)
+    display.print_banner()
 
     manager = StateManager()
 
     if SAVE_FILE.exists():
         catchup = calc_catchup_years(SAVE_FILE)
         manager.load()
-        print("\n你的注意力重新落回这个世界。")
+        display.console.print("\n  你的注意力重新落回这个世界。", style="italic dim")
         if catchup > 0:
-            print(f"你离开的时间里，世界又走过了约 {catchup} 年……")
+            display.console.print(
+                f"  你离开的时间里，世界又走过了约 [bold]{catchup}[/bold] 年……",
+                style="dim"
+            )
     else:
         catchup = 0
-        print("正在创世……")
+        display.console.print("  正在创世……", style="dim italic")
         opening = manager.initialize()
-        print(opening)
+        display.console.print()
+        display.console.print(opening, style="italic")
 
     sim = WorldSimulator(manager)
     sim.start(catchup_years=catchup)
 
-    # 打印离线补偿事件
     _flush_events(sim)
 
-    _help()
-
     def _status():
-        print(f"\n{DIV}")
-        print(manager.world.summary())
-        print(f"  命名居民：{len(manager.pool.living)}人  已故存档：{len(manager.pool.archived)}人")
-        if manager.loader.active_names():
-            print(f"  活跃模块：{', '.join(manager.loader.active_names())}")
-        prayers = manager.pool.pending_prayers()
-        if prayers:
-            print(f"  祈祷等待中：{', '.join(p.name for p in prayers)}")
-        print(DIV)
+        display.render_status(manager.world, manager.pool, manager.loader)
 
     sim.player_query(_status)
+    _help()
 
     while True:
-        # 每次等待输入前先冲刷后台事件
         _flush_events(sim)
 
         try:
             raw = input("\n> ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n你的目光从这个世界上移开了。")
+            display.console.print("\n  你的目光从这个世界上移开了。", style="italic dim")
             sim.stop()
             sys.exit(0)
 
         if not raw:
             continue
 
-        # 输入后再冲一次，避免后台线程恰好在这时产生事件
         _flush_events(sim)
 
         parts = raw.split(maxsplit=2)
@@ -121,11 +124,11 @@ def run():
         arg1 = parts[1].strip() if len(parts) > 1 else ""
         arg2 = parts[2].strip() if len(parts) > 2 else ""
 
-        # ── 纯展示指令（只读查询，不推进回合） ─────────────────────────────
+        # ── 纯展示指令 ────────────────────────────────────────────────────────
 
         if cmd in ("退出", "quit", "exit"):
             sim.stop()
-            print("你的意识退潮，这个世界仍在继续。")
+            display.console.print("  你的意识退潮，这个世界仍在继续。", style="italic dim")
             break
 
         elif cmd == "帮助":
@@ -133,149 +136,127 @@ def run():
             continue
 
         elif cmd == "状态":
-            sim.player_query(_status)
+            sim.player_query(
+                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+            )
+            continue
+
+        elif cmd == "地图":
+            sim.player_query(
+                lambda: display.render_world_map(manager.world, manager.pool)
+            )
             continue
 
         elif cmd == "人群":
-            def _show_crowd():
-                print(f"\n{DIV}")
-                print("【命名居民】")
-                print(manager.pool.summary_list(manager.world.world_year))
-                if manager.pool.archived:
-                    names = ", ".join(p.name for p in manager.pool.archived[-6:])
-                    print(f"\n  已故：{names}")
-                print(DIV)
-            sim.player_query(_show_crowd)
+            sim.player_query(
+                lambda: display.render_population_table(manager.pool, manager.world)
+            )
             continue
 
         elif cmd == "人":
             if not arg1:
-                print("用法：人 <名字>")
+                display.console.print("  用法：人 <名字>", style="dim")
                 continue
             def _show_person(name=arg1):
                 person = manager.pool.get_by_name(name)
                 if not person:
-                    print(f"未找到「{name}」，输入「人群」查看所有人名。")
+                    display.console.print(
+                        f"  未找到「{name}」，输入「人群」查看所有人名。", style="red dim"
+                    )
                     return
-                print(f"\n{DIV}")
-                print(person.display_timeline(manager.world.world_year))
-                print(DIV)
+                display.render_person_timeline(person, manager.world)
             sim.player_query(_show_person)
             continue
 
         elif cmd == "人物":
-            def _show_entities():
-                print(f"\n{DIV}")
-                print("【特殊人物】")
-                print(manager.entities_summary())
-                print(DIV)
-            sim.player_query(_show_entities)
+            sim.player_query(
+                lambda: display.render_entities(manager.active_entities)
+            )
             continue
 
         elif cmd == "变异":
-            def _show_mutations():
-                print(f"\n{DIV}")
-                print("【活跃变异】")
-                print(manager.mutations_summary())
-                print(DIV)
-            sim.player_query(_show_mutations)
+            sim.player_query(
+                lambda: display.render_mutations(manager.world)
+            )
             continue
 
         elif cmd == "神话":
-            def _show_myths():
-                print(f"\n{DIV}")
-                print("【世界神话】")
-                print(manager.myths_summary())
-                print(DIV)
-            sim.player_query(_show_myths)
+            sim.player_query(
+                lambda: display.render_myths(manager.myths)
+            )
             continue
 
         elif cmd == "祈祷":
-            def _show_prayers():
-                print(f"\n{DIV}")
-                print("【当前祈祷】")
-                prayers = manager.pool.pending_prayers()
-                if prayers:
-                    for p in prayers:
-                        print(f"  · {p.name}：{p.prayer_pending}")
-                    print("\n  用「回应 <名字> <答应/无视/惩戒/赐福>」来回应")
-                else:
-                    print("  （当前无人祈祷）")
-                print(DIV)
-            sim.player_query(_show_prayers)
+            sim.player_query(
+                lambda: display.render_prayers(manager.pool.pending_prayers())
+            )
             continue
 
         elif cmd == "模块":
-            def _show_modules():
-                print(f"\n{DIV}")
-                print("【世界扩展模块】")
-                active = manager.loader.active_names()
-                broken = manager.loader.broken_names()
-                if active:
-                    for n in active:
-                        desc = manager.loader.get_description(n)
-                        print(f"  + {n}  {desc}")
-                else:
-                    print("  （尚无涌现模块）")
-                if broken:
-                    print(f"\n  修复中：{', '.join(broken)}")
-                pending = [n for n, _, _ in manager._upgrade_requests]
-                if pending:
-                    print(f"  升级请求中：{', '.join(pending)}")
-                print(DIV)
-            sim.player_query(_show_modules)
+            sim.player_query(
+                lambda: display.render_modules(manager.loader)
+            )
             continue
 
-        # ── 会推进回合的指令 ─────────────────────────────────────────────────
+        # ── 会推进回合的指令 ──────────────────────────────────────────────────
 
         elif cmd in ("赐予", "gift"):
             if not arg1:
-                print("用法：赐予 <物品名>")
+                display.console.print("  用法：赐予 <物品名>", style="dim")
                 continue
             year_str = sim.player_query(lambda: manager.world.year_display())
-            print(f"\n[{year_str} · 赐予：{arg1}]")
+            display.print_divider()
+            display.console.print(f"  [{year_str} · 赐予：{arg1}]", style="cyan")
             result = sim.player_act(manager.apply_action, "赐予", arg1, GIFT_COST)
-            print(result)
+            display.console.print(result, style="white")
 
         elif cmd in ("施放", "miracle"):
             if not arg1:
-                print("用法：施放 <奇迹名>")
+                display.console.print("  用法：施放 <奇迹名>", style="dim")
                 continue
             year_str = sim.player_query(lambda: manager.world.year_display())
-            print(f"\n[{year_str} · 施放：{arg1}]")
+            display.print_divider()
+            display.console.print(f"  [{year_str} · 施放：{arg1}]", style="bright_yellow")
             result = sim.player_act(manager.apply_action, "施放", arg1, MIRACLE_COST)
-            print(result)
+            display.console.print(result, style="white")
 
         elif cmd == "回应":
             if not arg1 or not arg2:
-                print("用法：回应 <名字> <答应/无视/惩戒/赐福>")
+                display.console.print("  用法：回应 <名字> <答应/无视/惩戒/赐福>", style="dim")
                 continue
             type_map = {"答应": "answer", "无视": "ignore", "惩戒": "punish", "赐福": "bless"}
             rtype = type_map.get(arg2)
             if not rtype:
-                print("回应类型只能是：答应 / 无视 / 惩戒 / 赐福")
+                display.console.print("  回应类型只能是：答应 / 无视 / 惩戒 / 赐福", style="red dim")
                 continue
             year_str = sim.player_query(lambda: manager.world.year_display())
-            print(f"\n[{year_str} · 回应祈祷：{arg1}]")
+            display.print_divider()
+            display.console.print(f"  [{year_str} · 回应祈祷：{arg1}]", style="yellow")
             result = sim.player_act(manager.respond_to_prayer, arg1, rtype)
-            print(result)
+            display.console.print(result, style="white")
 
         elif cmd == "凝视":
             if not arg1:
-                print("用法：凝视 <名字或地点>")
+                display.console.print("  用法：凝视 <名字或地点>", style="dim")
                 continue
             year_str = sim.player_query(lambda: manager.world.year_display())
-            print(f"\n[{year_str} · 神明凝视：{arg1}]")
+            display.print_divider()
+            display.console.print(f"  [{year_str} · 神明凝视：{arg1}]", style="magenta")
             result = sim.player_query(manager.divine_gaze, arg1)
-            print(result)
-            continue  # 凝视不触发额外回合结算
-
-        else:
-            print(f"未知指令「{cmd}」。输入「帮助」查看指令列表。")
+            display.console.print(result, style="white")
             continue
 
-        # ── 行动后状态摘要 ───────────────────────────────────────────────────
-        sim.player_query(_status)
+        else:
+            display.console.print(
+                f"  未知指令「{cmd}」。输入「帮助」查看指令列表。", style="red dim"
+            )
+            continue
+
+        # ── 行动后状态摘要 ────────────────────────────────────────────────────
+        display.print_divider()
+        sim.player_query(
+            lambda: display.render_status(manager.world, manager.pool, manager.loader)
+        )
 
 
 if __name__ == "__main__":
