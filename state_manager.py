@@ -19,6 +19,8 @@ from evolution import ModuleLoader, MetaSystem, MODULES_DIR
 from systems import SYSTEMS
 
 SAVE_FILE = Path(__file__).parent / "savegame.json"
+GIFT_ABSORB_YEARS = 8
+MIRACLE_COOLDOWN_YEARS = 15
 
 
 class StateManager:
@@ -35,9 +37,6 @@ class StateManager:
         self._upgrade_requests: list[tuple[str, str, str]] = []
         self._last_gift_year: int = -999
         self._last_miracle_year: int = -999
-
-GIFT_ABSORB_YEARS = 8    # 部落消化一次恩赐需要的最少年数
-MIRACLE_COOLDOWN_YEARS = 15  # 奇迹冷却
 
     # ── 公开 API（供模块和外部调用）──────────────────────────────────────
 
