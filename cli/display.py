@@ -85,9 +85,9 @@ def render_status(world, pool, loader):
     else:
         right.append("  变异  无\n", style="dim")
     if loader.active_names():
-        right.append(f"  模块  {', '.join(loader.active_names())}", style="green dim")
+        right.append(f"  织体  {', '.join(loader.active_names())}", style="green dim")
     if loader.broken_names():
-        right.append(f"\n  修复中  {', '.join(loader.broken_names())}", style="red dim")
+        right.append(f"\n  织体裂缝  {', '.join(loader.broken_names())}", style="red dim")
 
     prayers = [p for p in pool.living if p.prayer_pending]
     if prayers:
@@ -298,7 +298,7 @@ def render_modules(loader):
     active = loader.active_names()
     broken = loader.broken_names()
     if not active and not broken:
-        console.print(Panel("  （尚无涌现模块）", title="扩展模块", border_style="dim"))
+        console.print(Panel("  （世界尚无织体涌现）", title="织体", border_style="dim"))
         return
     content = Text()
     for n in active:
@@ -307,7 +307,7 @@ def render_modules(loader):
         content.append(desc + "\n", style="dim")
     for n in broken:
         content.append(f"  ✗ {n}（修复中）\n", style="red")
-    console.print(Panel(content, title="扩展模块", border_style="dim"))
+    console.print(Panel(content, title="织体", border_style="dim"))
 
 
 def render_entities(active_entities: list):

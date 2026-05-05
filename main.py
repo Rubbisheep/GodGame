@@ -60,8 +60,8 @@ def _help(manager=None):
     t.append("世界神话库\n", style="dim")
     t.append("  祈祷 / prayers     ", style="cyan")
     t.append("当前等待回应的祈祷\n", style="dim")
-    t.append("  模块 / modules     ", style="cyan")
-    t.append("世界自生成扩展模块\n\n", style="dim")
+    t.append("  织体 / weave       ", style="cyan")
+    t.append("世界自然涌现的织体法则\n\n", style="dim")
 
     t.append("  退出 / quit / exit", style="dim")
 
@@ -185,7 +185,7 @@ def run():
                 lambda: display.render_prayers(manager.pool.pending_prayers())
             )
 
-        elif cmd in ("模块", "modules"):
+        elif cmd in ("织体", "weave", "modules"):
             sim.player_query(lambda: display.render_modules(manager.loader))
 
         # ── 干预指令（推进回合）──────────────────────────────────────────────
