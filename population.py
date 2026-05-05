@@ -44,7 +44,7 @@ class Person:
     inherited_memory: str = ""   # 从父母那继承的记忆碎片（一句话）
 
     # 信仰状态
-    faith_in_god: float = 0.5    # 0=不信  1=狂热信徒
+    faith_in_god: float = 0.0    # 0=不信  1=狂热信徒
     prayer_pending: str = ""     # 如果非空，说明此人正在向神明祈祷
 
     def age(self, current_year: int) -> int:

@@ -295,14 +295,18 @@ def _safe_json(raw: str, fallback: dict) -> dict:
 # 公开接口
 # ══════════════════════════════════════════════════════════════════════════════
 
-def generate_initial_population(world_state, count: int = 12) -> dict:
+def generate_initial_population(world_state, count: int = 10) -> dict:
     if USE_MOCK:
         return _mock_init_people()
     system = _WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{_INIT_POPULATION_SCHEMA}"
     user = (
         f"世界初始状态：{world_state.summary()}\n\n"
-        f"为这个世界生成 {count} 个不同年龄段的命名个体，"
-        "名字要有异域感，与任何现实文化无关。返回 JSON。"
+        f"为一个石器时代的狩猎采集小部落生成 {count} 个核心成员。"
+        "他们约30人，住在河边，靠狩猎和采集为生，没有任何文字或组织化宗教。"
+        "必须包含：至少1名长老（elder）、至少2名少年或儿童（youth/child）、其余为成年人（adult）。"
+        "其中有一名长老天生对某些无法解释的现象格外敏感——他/她不知道原因，只是习惯性地对空和水低语。"
+        "名字完全虚构，有异域质感，与任何现实语言无关。"
+        "背景要具体真实，体现石器时代的生活细节。返回 JSON。"
     )
     return json.loads(_call(system, user, max_tokens=1200))
 
@@ -322,11 +326,23 @@ def get_action_result(action_type, subject, world_state, active_entities, popula
         for e in active_entities
     ) or "无"
 
+    avg_faith = sum(p.faith_in_god for p in population_pool.living) / max(1, len(population_pool.living))
+    if avg_faith < 0.05:
+        contact_ctx = (
+            "【关键叙事背景】这是神明首次与此部落接触——人类完全不知道神明的存在。"
+            "这一刻对他们来说是彻底的未知降临：震惊、恐惧、困惑、或对未知的原始敬畏。"
+            "叙述应体现人类第一次面对无法解释之事的真实反应，不要用「神明」这个词描述他们的感受，"
+            "他们只会说「那个」「某种东西」「来自上面/外面」。"
+        )
+    else:
+        contact_ctx = f"部落对神明的平均信仰度约为 {avg_faith:.0%}，此前已有过接触。"
+
     system = _WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{_ACTION_SCHEMA}"
     user = (
         f"世界状态：\n{world_state.summary()}\n\n"
         f"命名居民（部分）：\n{people_list}\n\n"
         f"特殊人物：\n{entity_lines}\n\n"
+        f"{contact_ctx}\n\n"
         f"神明执行【{action_type}】：{subject}\n返回 JSON。"
     )
     _fallback = {

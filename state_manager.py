@@ -67,20 +67,57 @@ class StateManager:
 
     # ── 初始化 ───────────────────────────────────────────────────────────────
 
-    def initialize(self):
-        data = generate_initial_population(self.world, count=12)
-        age_to_offset = {"child": -8, "youth": -16, "adult": -28, "elder": -52}
+    def initialize(self) -> str:
+        """创建初始部落，返回开局叙事文本。"""
+        data = generate_initial_population(self.world, count=10)
+        age_to_offset = {"child": -8, "youth": -16, "adult": -28, "elder": -45}
+        elders = []
         for pd in data.get("people", []):
             offset = age_to_offset.get(pd.get("age_stage", "adult"), -25)
-            birth_yr = self.world.world_year + offset   # 可以是负数，代表游戏开始前出生
+            birth_yr = self.world.world_year + offset
             p = Person(
                 name=pd["name"],
                 birth_year=birth_yr,
                 traits=pd.get("traits", ["未知"]),
                 background=pd.get("background", ""),
+                faith_in_god=0.0,
             )
             p.add_event(birth_yr, "birth", pd.get("background", "出生。"))
             self.pool.add(p)
+            if pd.get("age_stage") == "elder":
+                elders.append(p)
+
+        # 长者中最年长的一人天生对无名之物敏感——留石堆，对空气低语
+        if elders:
+            sensitive = elders[0]
+        elif self.pool.living:
+            sensitive = self.pool.living[0]
+        else:
+            sensitive = None
+        if sensitive:
+            sensitive.faith_in_god = 0.06
+            sensitive.add_event(
+                self.world.world_year, "autonomous",
+                "每天在河边垒几块石头，对着空气低语——他自己也不知道在和谁说话。"
+            )
+
+        opening = (
+            "\n你在某个时刻意识到自己存在。\n"
+            "没有名字。没有记忆。\n"
+            "只有一种正在凝聚的注意力——某种东西刚刚从极深处浮现，\n"
+            "第一次真正看见了这个世界。\n\n"
+            f"你看见了：一条河，一片泥滩，一堆快要熄灭的火，\n"
+            f"围在火边的 {len(self.pool.living)} 个人影。\n"
+            f"他们不知道你在看他们。\n\n"
+        )
+        if sensitive:
+            opening += (
+                f"其中一个长者——{sensitive.name}——每天在河边垒石头，\n"
+                "对着空气低语，像在回应某个他从未听到回应的声音。\n\n"
+            )
+        opening += "这个世界刚刚有了一个观察者。"
+        self.add_event(opening)
+        return opening
 
     # ── 玩家操作 ────────────────────────────────────────────────────────────
 
@@ -107,6 +144,8 @@ class StateManager:
                 p.add_event(self.world.world_year,
                             ev.get("event_type", "witness"),
                             ev.get("description", ""))
+                if ev.get("event_type") in ("witness", "miracle", "divine"):
+                    p.faith_in_god = min(1.0, p.faith_in_god + 0.15)
             sp = ev.get("system_proposal") or {}
             if sp.get("target_module") and sp.get("proposal"):
                 self._upgrade_requests.append((
@@ -174,6 +213,7 @@ class StateManager:
         if person and person.is_alive():
             person.add_event(self.world.world_year, "divine",
                              "神明的目光曾短暂停在他身上——他不知道这意味着什么。")
+            person.faith_in_god = min(1.0, person.faith_in_god + 0.03)
 
         return (
             f"【神明凝视：{target_name}】\n"
@@ -262,7 +302,7 @@ class StateManager:
                 f"享年{person.age(self.world.world_year)}岁"
             )
 
-        birth_prob = min(0.25 + self.world.population / 8000, 0.7)
+        birth_prob = min(0.15 + len(self.pool.living) / 120, 0.45)
         if self.pool.can_add_birth() and random.random() < birth_prob:
             data = generate_birth(self.world, self.pool)
             parents = random.sample(self.pool.living, min(2, len(self.pool.living)))
@@ -416,7 +456,9 @@ class StateManager:
     # ── 回合推进 ─────────────────────────────────────────────────────────────
 
     def end_of_turn(self) -> list[str]:
-        self.world.tick_resources()   # 年份+1，信仰自然增长
+        # 神力加成来自命名居民的信仰积累
+        faith_bonus = int(sum(p.faith_in_god for p in self.pool.living) * 2)
+        self.world.tick_resources(faith_bonus)
         messages = []
 
         messages.extend(self._tick_entities())

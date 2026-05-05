@@ -55,8 +55,8 @@ class SpecialEntity:
 
 @dataclass
 class WorldState:
-    population: int = 1000
-    faith: int = 100
+    population: int = 30
+    faith: int = 20
     current_era: str = "混沌黎明"
     tech_and_culture_tags: list[str] = field(default_factory=list)
     world_year: int = 1
@@ -73,9 +73,9 @@ class WorldState:
     def apply_population_change(self, delta: int):
         self.population = max(0, self.population + delta)
 
-    def tick_resources(self):
-        self.faith += max(1, self.population // 100)
+    def tick_resources(self, faith_bonus: int = 0):
         self.world_year += 1
+        self.faith += max(1, self.population // 30) + faith_bonus
 
     def year_display(self) -> str:
         if self.calendar_name:
@@ -96,7 +96,7 @@ class WorldState:
         tend = "、".join(self.dominant_tendencies()) or "无"
         return (
             f"[{self.year_display()} | {self.current_era}]\n"
-            f"  人口: {self.population}  信仰: {self.faith}\n"
+            f"  人口: {self.population}  神力: {self.faith}\n"
             f"  已掌握: {tags}\n"
             f"  活跃变异: {len(self.active_mutations)}处  世界倾向: {tend}"
         )

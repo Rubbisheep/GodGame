@@ -32,11 +32,11 @@ DIV = "─" * 56
 def _help():
     print(
         "\n指令："
-        "\n  赐予 <物品>        — 消耗10信仰"
-        "\n  施放 <奇迹>        — 消耗50信仰"
+        "\n  赐予 <物品>        — 将神力凝结为实物降入人间（消耗10神力）"
+        "\n  施放 <奇迹>        — 以神力直接干预世界法则（消耗50神力）"
         "\n  回应 <名字> <类型> — 回应祈祷（类型：答应/无视/惩戒/赐福）"
-        "\n  凝视 <名字/地点>   — 神明深度洞察"
-        "\n  状态               — 世界概况"
+        "\n  凝视 <名字/地点>   — 深度洞察某人或某地（不消耗回合）"
+        "\n  状态               — 世界概况（含当前神力）"
         "\n  人群               — 命名居民列表"
         "\n  人 <名字>          — 某人的完整人生事件流"
         "\n  人物               — 特殊人物"
@@ -44,6 +44,8 @@ def _help():
         "\n  神话               — 世界神话库"
         "\n  模块               — 世界自生成扩展系统"
         "\n  祈祷               — 当前祈祷列表"
+        "\n\n  神力：你行使意志的能量。每年自然积累，居民的信仰会加速积累。"
+        "\n  初始神力20；赐予消耗10，施放消耗50。他们目前还不知道你的存在。"
     )
 
 
@@ -67,13 +69,14 @@ def run():
     if SAVE_FILE.exists():
         catchup = calc_catchup_years(SAVE_FILE)
         manager.load()
-        print("世界重新进入你的视野。")
+        print("\n你的注意力重新落回这个世界。")
         if catchup > 0:
-            print(f"你离开期间大约过去了 {catchup} 年……")
+            print(f"你离开的时间里，世界又走过了约 {catchup} 年……")
     else:
         catchup = 0
         print("正在创世……")
-        manager.initialize()
+        opening = manager.initialize()
+        print(opening)
 
     sim = WorldSimulator(manager)
     sim.start(catchup_years=catchup)
@@ -81,8 +84,6 @@ def run():
     # 打印离线补偿事件
     _flush_events(sim)
 
-    print("\n你是一个正在注视这个世界的存在。")
-    print("一切都还很原始，但某些东西已经开始躁动。")
     _help()
 
     def _status():
