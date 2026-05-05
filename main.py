@@ -23,17 +23,21 @@ def _help(manager=None):
 
     gift_wait = max(0, GIFT_ABSORB_YEARS - (yr - last_gift)) if manager else 0
     miracle_wait = max(0, MIRACLE_COOLDOWN_YEARS - (yr - last_miracle)) if manager else 0
-    gift_status = f"[red]冷却中 {gift_wait}年[/red]" if gift_wait > 0 else "[green]可用[/green]"
-    miracle_status = f"[red]冷却中 {miracle_wait}年[/red]" if miracle_wait > 0 else "[green]可用[/green]"
+    gift_label   = f"冷却中 {gift_wait}年" if gift_wait > 0 else "可用"
+    gift_style   = "red" if gift_wait > 0 else "green"
+    miracle_label  = f"冷却中 {miracle_wait}年" if miracle_wait > 0 else "可用"
+    miracle_style  = "red" if miracle_wait > 0 else "green"
 
     t = Text()
     t.append("── 干预 ──\n", style="bold dim")
     t.append("  赐予 / gift   <物品>        ", style="cyan")
-    t.append(f"神力10  {gift_status}  ", style="dim")
-    t.append("例：赐予 火种 / gift 石斧\n", style="dim italic")
+    t.append("神力10  ", style="dim")
+    t.append(gift_label, style=gift_style)
+    t.append("  例：赐予 火种 / gift 石斧\n", style="dim italic")
     t.append("  施放 / cast   <奇迹>        ", style="cyan")
-    t.append(f"神力50  {miracle_status}  ", style="dim")
-    t.append("例：施放 丰收 / cast 瘟疫治愈\n", style="dim italic")
+    t.append("神力50  ", style="dim")
+    t.append(miracle_label, style=miracle_style)
+    t.append("  例：施放 丰收 / cast 瘟疫治愈\n", style="dim italic")
     t.append("  回应 / respond <名字> <类型>", style="cyan")
     t.append("  类型：答应 / 无视 / 惩戒 / 赐福\n", style="dim")
     t.append("  凝视 / gaze   <名字或地点>  ", style="cyan")
