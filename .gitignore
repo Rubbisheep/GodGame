@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+savegame.json
+test_write.py
+.claude/
+modules/*.py
+!modules/__init__.py
