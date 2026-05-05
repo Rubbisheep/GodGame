@@ -9,7 +9,7 @@ import queue
 import json
 from pathlib import Path
 
-TICK_INTERVAL = 60
+TICK_INTERVAL = 300  # 5分钟真实时间 = 世界1年
 AUTOSAVE_EVERY = 5
 MAX_CATCHUP = 100
 TIMESTAMP_KEY = "__last_tick_time__"
