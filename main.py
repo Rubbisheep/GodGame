@@ -61,11 +61,7 @@ def _help(manager=None):
     t.append("  模块 / modules     ", style="cyan")
     t.append("世界自生成扩展模块\n\n", style="dim")
 
-    t.append("── 说明 ──\n", style="bold dim")
-    t.append("  · 变异由世界自主产生，玩家无法指定目标\n", style="dim")
-    t.append("  · 赐予后部落需要时间消化，才能接受下一次恩赐\n", style="dim")
-    t.append("  · 世界每5分钟自动推进1年，按Enter刷新动态\n", style="dim")
-    t.append("  · 退出 / quit / exit  退出游戏", style="dim")
+    t.append("  退出 / quit / exit", style="dim")
 
     display.console.print(Panel(t, title="[bold]指令列表[/bold]", border_style="dim"))
 
