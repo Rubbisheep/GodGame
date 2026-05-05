@@ -82,6 +82,39 @@ def generate_other_god_event(world_state, pool, active_entities) -> dict:
         return mock_other_god()
 
 
+def generate_life_snapshot(world_state, pool) -> str:
+    """生成当下切片：3-5个具体的人正在做什么、想什么。流动叙事，不限于大事。"""
+    import random
+    sample = random.sample(pool.living, min(5, len(pool.living)))
+    people_desc = "\n".join(
+        f"- {p.name}（{p.life_stage(world_state.world_year)}·{p.age(world_state.world_year)}岁"
+        f"  性格：{'、'.join(p.traits[:2])}  信仰：{p.faith_in_god:.0%}"
+        + (f"  祈祷中：{p.prayer_pending}" if p.prayer_pending else "")
+        + "）"
+        for p in sample
+    )
+    system = (
+        WORLD_BIBLE + "\n\n"
+        "你是这个世界的隐形观察者。用第三人称、现在时、感官性的文字，写下你此刻看见的几个普通人正在做的事情。\n"
+        "要求：\n"
+        "· 写3-5个人，每人1-3句话，连成一段流动的叙事\n"
+        "· 细节要具体：动作、表情、手里的东西、周围的声音气味\n"
+        "· 可以写鸡毛蒜皮：捉虫、发呆、拌嘴、偷懒、胡思乱想\n"
+        "· 可以偶尔透露一句内心独白，用斜体感觉（直接写，不加任何标记）\n"
+        "· 不要写重大事件，不要升华，不要总结\n"
+        "· 只输出叙事文字，不加任何标题或前缀"
+    )
+    user = (
+        f"当前：{world_state.year_display()}  {world_state.current_era}\n\n"
+        f"此刻你看见的人：\n{people_desc}\n\n"
+        "写下他们此刻的样子。"
+    )
+    try:
+        return call(system, user, max_tokens=500)
+    except Exception:
+        return "（世界在继续，但神明的目光此刻难以聚焦。）"
+
+
 def generate_world_myth(event_text: str, world_state) -> dict:
     if USE_MOCK:
         return {"myth_name": "无名之事", "myth_text": "据说在那个年代，有些事情发生了，没有人知道为什么。",

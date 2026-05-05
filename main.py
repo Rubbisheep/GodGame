@@ -13,6 +13,7 @@ from rich.text import Text
 from state_manager import StateManager, SAVE_FILE, GIFT_ABSORB_YEARS, MIRACLE_COOLDOWN_YEARS
 from core.models import MIRACLE_COST, GIFT_COST
 from core.simulator import WorldSimulator, calc_catchup_years
+from llm import generate_life_snapshot
 import cli.display as display
 
 
@@ -182,8 +183,17 @@ def run():
         elif cmd in ("故事", "story", "log"):
             def _show_story():
                 new_events = manager.event_log[cursor[0]:]
-                display.render_story(new_events)
-                cursor[0] = len(manager.event_log)
+                if new_events:
+                    display.render_story(new_events)
+                    cursor[0] = len(manager.event_log)
+                year_str = manager.world.year_display()
+                display.console.print(
+                    f"\n  [bold]此刻的世界[/bold]  [dim]{year_str}[/dim]"
+                )
+                display.print_divider()
+                snapshot = generate_life_snapshot(manager.world, manager.pool)
+                display.console.print(f"\n{snapshot}\n", style="italic")
+                display.print_divider()
             sim.player_query(_show_story)
 
         elif cmd in ("神话", "myths"):
