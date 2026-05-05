@@ -33,6 +33,11 @@ class StateManager:
         self.myths: list[dict] = []
         self._other_god_cooldown = 0
         self._upgrade_requests: list[tuple[str, str, str]] = []
+        self._last_gift_year: int = -999
+        self._last_miracle_year: int = -999
+
+GIFT_ABSORB_YEARS = 8    # 部落消化一次恩赐需要的最少年数
+MIRACLE_COOLDOWN_YEARS = 15  # 奇迹冷却
 
     # ── 公开 API（供模块和外部调用）──────────────────────────────────────
 
@@ -96,6 +101,16 @@ class StateManager:
         if not self.world.can_afford(cost):
             return f"神力不足（需要 {cost}，当前 {self.world.faith}）。"
 
+        yr = self.world.world_year
+        if action_type == "赐予":
+            wait = GIFT_ABSORB_YEARS - (yr - self._last_gift_year)
+            if wait > 0:
+                return f"部落还在消化上一次的恩赐，需要再等 {wait} 年。"
+        elif action_type == "施放":
+            wait = MIRACLE_COOLDOWN_YEARS - (yr - self._last_miracle_year)
+            if wait > 0:
+                return f"神力仍在恢复，奇迹需要再等 {wait} 年才能再次降临。"
+
         self.world.spend_faith(cost)
         result = get_action_result(action_type, subject, self.world,
                                    self.active_entities, self.pool)
@@ -119,6 +134,11 @@ class StateManager:
 
         if result.get("calendar_name"):
             self.world.calendar_name = result["calendar_name"]
+
+        if action_type == "赐予":
+            self._last_gift_year = self.world.world_year
+        elif action_type == "施放":
+            self._last_miracle_year = self.world.world_year
 
         era_notice = ""
         if result.get("is_era_breakthrough") and result.get("new_era_name"):
@@ -254,6 +274,8 @@ class StateManager:
             "event_log": self.event_log[-50:],
             "module_data": self.module_data,
             "active_modules": self.loader.active_names(),
+            "last_gift_year": self._last_gift_year,
+            "last_miracle_year": self._last_miracle_year,
         }
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -265,6 +287,8 @@ class StateManager:
         self.myths = data.get("myths", [])
         self.event_log = data.get("event_log", [])
         self.module_data = data.get("module_data", {})
+        self._last_gift_year = data.get("last_gift_year", -999)
+        self._last_miracle_year = data.get("last_miracle_year", -999)
         for name in data.get("active_modules", []):
             mod_file = MODULES_DIR / f"{name}.py"
             if mod_file.exists():

@@ -25,6 +25,7 @@ class WorldSimulator:
         self._running = False
         self._ticks_since_save = 0
         self._thread: threading.Thread | None = None
+        self._bg_ticked = False  # 后台 tick 发生过，下次刷新时自动显示状态
 
     # ── 启动/停止 ───────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ class WorldSimulator:
             time.sleep(TICK_INTERVAL)
             if self._running:
                 self._tick(silent=False)
+                self._bg_ticked = True
 
     def _tick(self, silent: bool = False):
         with self.lock:
@@ -89,14 +91,17 @@ class WorldSimulator:
         with self.lock:
             return fn(*args, **kwargs)
 
-    def drain(self) -> list[str]:
+    def drain(self) -> tuple[list[str], bool]:
+        """返回 (事件列表, 是否有后台 tick 发生)。"""
         events = []
         while True:
             try:
                 events.append(self.event_queue.get_nowait())
             except queue.Empty:
                 break
-        return events
+        ticked = self._bg_ticked
+        self._bg_ticked = False
+        return events, ticked
 
 
 def calc_catchup_years(save_file: Path) -> int:
