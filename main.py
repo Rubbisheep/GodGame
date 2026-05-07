@@ -59,10 +59,6 @@ def _help(manager=None):
     t.append("命名居民列表\n", style="dim")
     t.append("  人 / person <名字> ", style="cyan")
     t.append("某人的完整人生时间线\n", style="dim")
-    t.append("  人物 / entities    ", style="cyan")
-    t.append("特殊人物\n", style="dim")
-    t.append("  神话 / myths       ", style="cyan")
-    t.append("世界神话库\n", style="dim")
     t.append("  祈祷 / prayers     ", style="cyan")
     t.append("当前等待回应的祈祷\n", style="dim")
     t.append("  法则 / weave       ", style="cyan")
@@ -181,9 +177,6 @@ def run():
                 display.render_person_timeline(person, manager.world)
             sim.player_query(_show_person)
 
-        elif cmd in ("人物", "entities", "entity"):
-            sim.player_query(lambda: display.render_entities(manager.active_entities))
-
         elif cmd in ("故事", "story", "log"):
             def _show_story():
                 new_events = manager.event_log[cursor[0]:]
@@ -201,9 +194,6 @@ def run():
                 display.console.print(f"\n{snapshot}\n", style="italic")
                 display.print_divider()
             sim.player_query(_show_story)
-
-        elif cmd in ("神话", "myths"):
-            sim.player_query(lambda: display.render_myths(manager.myths))
 
         elif cmd in ("祈祷", "prayers"):
             sim.player_query(
@@ -297,7 +287,7 @@ def run():
             question = arg1 + (" " + arg2 if arg2 else "")
             def _do_ask(q=question):
                 result = generate_oracle_query(
-                    q, manager.world, manager.event_log, manager.myths
+                    q, manager.world, manager.event_log
                 )
                 display.render_oracle(q, result)
             sim.player_query(_do_ask)

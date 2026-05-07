@@ -1,9 +1,9 @@
-"""神明相关生成：祈祷回应、神明凝视、其他神明干涉、神话。"""
+"""神明相关生成：祈祷回应、神明凝视、传话、自询、生活切片。"""
 import json
 from .client import call, USE_MOCK
 from .bible import WORLD_BIBLE
-from .schemas import (PRAYER_RESPONSE, DIVINE_GAZE, OTHER_GOD, WORLD_MYTH,
-                       mock_prayer_response, mock_divine_gaze, mock_other_god)
+from .schemas import (PRAYER_RESPONSE, DIVINE_GAZE,
+                       mock_prayer_response, mock_divine_gaze)
 
 
 def generate_prayer_response(person, prayer_text: str,
@@ -64,24 +64,6 @@ def generate_divine_gaze(target_name: str, target_type: str,
         return mock_divine_gaze(target_name, target_type)
 
 
-def generate_other_god_event(world_state, pool, active_entities) -> dict:
-    if USE_MOCK:
-        return mock_other_god()
-
-    npc_names = [p.name for p in pool.random_living(5)]
-    entity_names = [e.name for e in active_entities[:3]]
-    system = WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{OTHER_GOD}"
-    user = (
-        f"世界状态：\n{world_state.summary()}\n\n"
-        f"当前可引用的人物：{', '.join(npc_names + entity_names)}\n\n"
-        "生成另一位神明的干涉事件。事件应当神秘难以辨认，像世界本身在发生奇异变化，而非外部入侵。返回 JSON。"
-    )
-    try:
-        return json.loads(call(system, user, max_tokens=350))
-    except Exception:
-        return mock_other_god()
-
-
 def generate_life_snapshot(world_state, pool, recent_events: list | None = None) -> str:
     """生成当下切片：呈现数个具体的人此刻在做什么，有大事必须体现。"""
     import random
@@ -121,23 +103,6 @@ def generate_life_snapshot(world_state, pool, recent_events: list | None = None)
         return call(system, user, max_tokens=600)
     except Exception:
         return "（世界在继续，但神明的目光此刻难以聚焦。）"
-
-
-def generate_world_myth(event_text: str, world_state) -> dict:
-    if USE_MOCK:
-        return {"myth_name": "无名之事", "myth_text": "据说在那个年代，有些事情发生了，没有人知道为什么。",
-                "cultural_effect": "人们开始在夜晚对着天空低语。"}
-    system = WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{WORLD_MYTH}"
-    user = (
-        f"世界年份：{world_state.year_display()}  时代：{world_state.current_era}\n\n"
-        f"触发神话的事件：{event_text}\n\n"
-        "将这个事件转化为一个在人口中口耳相传的神话。"
-        "myth_text 用古朴的叙事口吻，仿佛一位老人在讲述，不提「神明」或任何超自然词汇，而是通过现象描述。返回 JSON。"
-    )
-    try:
-        return json.loads(call(system, user, max_tokens=400))
-    except Exception:
-        return {}
 
 
 def generate_npc_dialogue(person, god_message: str, world_state, pool) -> dict:
@@ -181,16 +146,13 @@ def generate_npc_dialogue(person, god_message: str, world_state, pool) -> dict:
         return {"heard": False, "speech": "（没有任何回应）", "action": "继续原来的事", "faith_delta": 0.0}
 
 
-def generate_oracle_query(question: str, world_state, event_log: list, myths: list) -> dict:
+def generate_oracle_query(question: str, world_state, event_log: list) -> dict:
     """神明自询——基于已积累的所见回答问题，未见过的如实说不知。"""
     knowledge_base = []
     if world_state.tech_and_culture_tags:
         knowledge_base.append(f"掌握的知识与文化：{', '.join(world_state.tech_and_culture_tags)}")
     if world_state.dominant_tendencies():
         knowledge_base.append(f"世界倾向：{', '.join(world_state.dominant_tendencies())}")
-    if myths:
-        myth_names = [m.get("myth_name", "") for m in myths[-5:]]
-        knowledge_base.append(f"已记录的神话：{', '.join(myth_names)}")
     recent = [e.strip() for e in event_log[-30:] if e.strip()]
     if recent:
         knowledge_base.append(f"近期见闻（最近{len(recent)}条）：\n" + "\n".join(recent[-15:]))

@@ -2,17 +2,18 @@
 StateManager — 薄协调器，把所有子系统串起来。
 各 tick 系统在 systems/ 中独立实现。
 LLM 调用全在 llm/ 中，不在这里。
+
+核心极简：时间 / 人 / 信仰循环 / 玩家干预 / NPC 自主 / 涌现引擎。
+其他一切（变异、神话、异人、其他神明、贸易、战争……）都由 LLM 生成的模块承担。
 """
 import json
-import random
 from pathlib import Path
-from typing import Optional
 
-from core.models import WorldState, SpecialEntity, MIRACLE_COST, GIFT_COST
+from core.models import WorldState, MIRACLE_COST, GIFT_COST
 from core.population import Person, PopulationPool
 from llm import (
     get_action_result, generate_initial_population,
-    generate_prayer_response, generate_divine_gaze, generate_world_myth,
+    generate_prayer_response, generate_divine_gaze,
     get_error_narrative, get_fix_narrative, get_upgrade_narrative,
 )
 from evolution import ModuleLoader, MetaSystem, MODULES_DIR
@@ -27,13 +28,10 @@ class StateManager:
     def __init__(self):
         self.world = WorldState()
         self.pool = PopulationPool()
-        self.active_entities: list[SpecialEntity] = []
         self.loader = ModuleLoader()
         self.meta = MetaSystem()
         self.module_data: dict[str, dict] = {}
         self.event_log: list[str] = []
-        self.myths: list[dict] = []
-        self._other_god_cooldown = 0
         self._upgrade_requests: list[tuple[str, str, str]] = []
         self._last_gift_year: int = -999
         self._last_miracle_year: int = -999
@@ -111,8 +109,7 @@ class StateManager:
                 return f"神力仍在恢复，奇迹需要再等 {wait} 年才能再次降临。"
 
         self.world.spend_faith(cost)
-        result = get_action_result(action_type, subject, self.world,
-                                   self.active_entities, self.pool)
+        result = get_action_result(action_type, subject, self.world, self.pool)
 
         self.world.apply_population_change(result.get("population_change", 0))
         for tag in result.get("new_tech_tags", []):
@@ -143,7 +140,6 @@ class StateManager:
         if result.get("is_era_breakthrough") and result.get("new_era_name"):
             self.world.current_era = result["new_era_name"]
             era_notice = f"\n\n  ★ 时代跨越！世界迈入了【{self.world.current_era}】！"
-            self._maybe_generate_myth(result.get("narrative_text", ""))
 
         for r in self.loader.run_on_action(self, action_type, subject):
             if r.get("narrative"):
@@ -188,21 +184,6 @@ class StateManager:
             f"{result.get('deep_vision', '')}\n\n"
             f"  ▸ {result.get('hidden_truth', '')}"
         )
-
-    # ── 神话生成 ─────────────────────────────────────────────────────────
-
-    def _maybe_generate_myth(self, event_text: str):
-        if not event_text or random.random() > 0.4:
-            return
-        myth = generate_world_myth(event_text, self.world)
-        if myth.get("myth_name"):
-            self.myths.append(myth)
-            people = self.pool.random_living(1)
-            if people:
-                people[0].add_event(
-                    self.world.world_year, "growth",
-                    f"听闻了「{myth['myth_name']}」的故事：{myth['myth_text'][:40]}…"
-                )
 
     # ── 模块 tick ────────────────────────────────────────────────────────
 
@@ -259,17 +240,9 @@ class StateManager:
     # ── 存档 / 读档 ──────────────────────────────────────────────────────
 
     def save(self, path: Path = SAVE_FILE):
-        entities_data = [
-            {"name": e.name, "traits": e.traits, "current_focus": e.current_focus,
-             "risk_level": e.risk_level, "age": e.age, "max_age": e.max_age,
-             "legacy_tags": e.legacy_tags, "mutations": e.mutations}
-            for e in self.active_entities
-        ]
         data = {
             "world": self.world.to_dict(),
             "pool": self.pool.to_dict(),
-            "active_entities": entities_data,
-            "myths": self.myths,
             "event_log": self.event_log[-50:],
             "module_data": self.module_data,
             "active_modules": self.loader.active_names(),
@@ -282,8 +255,6 @@ class StateManager:
         data = json.loads(path.read_text(encoding="utf-8"))
         self.world = WorldState.from_dict(data["world"])
         self.pool = PopulationPool.from_dict(data["pool"])
-        self.active_entities = [SpecialEntity(**e) for e in data.get("active_entities", [])]
-        self.myths = data.get("myths", [])
         self.event_log = data.get("event_log", [])
         self.module_data = data.get("module_data", {})
         self._last_gift_year = data.get("last_gift_year", -999)
@@ -292,33 +263,3 @@ class StateManager:
             mod_file = MODULES_DIR / f"{name}.py"
             if mod_file.exists():
                 self.loader.load(name, mod_file.read_text(encoding="utf-8"), self)
-
-    # ── 展示辅助 ─────────────────────────────────────────────────────────
-
-    def entities_summary(self) -> str:
-        if not self.active_entities:
-            return "  （暂无特殊人物）"
-        lines = []
-        for e in self.active_entities:
-            mut = f"  变异：{'；'.join(e.mutations)}" if e.mutations else ""
-            lines.append(
-                f"  · {e.name}（{'、'.join(e.traits)}，第{e.age}/{e.max_age}年）\n"
-                f"    正在：{e.current_focus}{mut}"
-            )
-        return "\n".join(lines)
-
-    def mutations_summary(self) -> str:
-        if not self.world.active_mutations:
-            return "  （无活跃变异）"
-        return "\n".join(
-            f"  {['◈','◉','⬡'][m.tier-1]} {m.target_name}：{m.description}"
-            for m in self.world.active_mutations
-        )
-
-    def myths_summary(self) -> str:
-        if not self.myths:
-            return "  （世界尚无神话）"
-        return "\n".join(
-            f"  《{m['myth_name']}》\n  {m['myth_text'][:80]}…"
-            for m in self.myths[-5:]
-        )

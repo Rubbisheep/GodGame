@@ -12,22 +12,19 @@ from rich import box
 
 console = Console(highlight=False)
 
-_MAP_W, _MAP_H = 30, 10
+_MAP_W, _MAP_H = 22, 11
 
 # ── 内部工具 ────────────────────────────────────────────────────────────────
 
 def _faith_bar(value: float, width: int = 10) -> Text:
     filled = int(value * width)
     t = Text()
-    if value < 0.3:
-        color = "red"
-    elif value < 0.6:
-        color = "yellow"
-    else:
-        color = "green"
-    t.append("█" * filled, style=color)
-    t.append("░" * (width - filled), style="grey50")
-    t.append(f" {value:.0%}", style="white")
+    if value < 0.3:     color = "red"
+    elif value < 0.6:   color = "yellow"
+    else:               color = "green"
+    t.append("●" * filled, style=color)
+    t.append("·" * (width - filled), style="grey42")
+    t.append(f"  {value:.0%}", style="dim")
     return t
 
 
@@ -35,8 +32,8 @@ def _power_bar(faith: int, width: int = 16) -> Text:
     capped = min(faith, 200)
     filled = int(capped / 200 * width)
     t = Text()
-    t.append("▓" * filled, style="cyan")
-    t.append("░" * (width - filled), style="grey50")
+    t.append("◆" * filled, style="cyan")
+    t.append("·" * (width - filled), style="grey42")
     t.append(f"  {faith}", style="bright_white")
     return t
 
@@ -47,64 +44,76 @@ def _name_pos(name: str, w: int, h: int) -> tuple[int, int]:
 
 
 def _terrain(x: int, y: int, seed: int) -> tuple[str, str]:
-    h = int(hashlib.md5(f"{x},{y},{seed // 8}".encode()).hexdigest(), 16) % 100
-    if h < 8:   return "≈", "blue"       # 水域
-    if h < 20:  return "▪", "green"      # 林地
-    if h < 27:  return "▲", "yellow"     # 山地
-    return " ", "grey35"                  # 平原（留空更清晰）
+    # 粗粒度分块，2x2 格子共享地形，形成成片的区域感
+    h = int(hashlib.md5(f"{x//2},{y//2},{seed // 16}".encode()).hexdigest(), 16) % 100
+    if h < 12:  return "~", "blue"       # 水域
+    if h < 32:  return "T", "green"      # 林地
+    if h < 42:  return "^", "yellow"     # 山地
+    return ".", "grey30"                  # 平原
 
 
 # ── 渲染函数 ─────────────────────────────────────────────────────────────────
 
 def render_status(world, pool, loader):
-    """主状态面板：年份/时代/神力/人口/倾向/模块。"""
+    """主状态面板：世界此刻的快照。"""
     avg_faith = sum(p.faith_in_god for p in pool.living) / max(1, len(pool.living))
+    prayers = [p for p in pool.living if p.prayer_pending]
+    notables = [p for p in pool.living if p.is_notable]
 
+    # 左：世界此刻
     left = Text()
     left.append(f"  {world.year_display()}\n", style="bold bright_white")
-    left.append(f"  {world.current_era}\n\n", style="italic dim")
-    left.append("  神力  ", style="cyan")
+    left.append(f"  ─ {world.current_era} ─\n\n", style="italic grey58")
+    left.append("  神力    ", style="cyan")
     left.append(_power_bar(world.faith))
-    left.append("\n  居民信仰  ", style="cyan")
+    left.append("\n  信仰    ", style="cyan")
     left.append(_faith_bar(avg_faith))
-    left.append(f"\n\n  人口  {world.population}", style="dim")
+    left.append(f"\n\n  人口    ", style="dim")
+    left.append(f"{world.population}", style="bright_white")
+    left.append(f"      命名居民  ", style="dim")
+    left.append(f"{len(pool.living)}", style="bright_white")
+    if pool.archived:
+        left.append(f"  已故 {len(pool.archived)}", style="red dim")
 
+    # 右：世界正在成为什么
     right = Text()
-    tags = "、".join(world.tech_and_culture_tags) or "无"
-    tend = "、".join(world.dominant_tendencies()) or "无"
-    right.append(f"  掌握  {tags}\n", style="dim")
-    right.append(f"  倾向  {tend}\n", style="dim")
-    if world.active_mutations:
-        tier_symbols = {1: ("◌", "grey70"), 2: ("●", "yellow"), 3: ("⬡", "bright_red")}
-        right.append("  变异  ", style="dim")
-        for m in world.active_mutations:
-            sym, style = tier_symbols.get(m.tier, ("?", "white"))
-            right.append(sym, style=style)
-            right.append(f" {m.target_name}  ", style="dim")
-        right.append("\n")
-    else:
-        right.append("  变异  无\n", style="dim")
+    tags = "、".join(world.tech_and_culture_tags) or "—"
+    tend = "、".join(world.dominant_tendencies()) or "—"
+    right.append("  掌握  ", style="dim")
+    right.append(f"{tags}\n", style="white")
+    right.append("  倾向  ", style="dim")
+    right.append(f"{tend}\n", style="white")
+
     if loader.active_names():
-        right.append(f"  法则  {', '.join(loader.active_names())}", style="green dim")
+        right.append("\n  法则  ", style="dim")
+        right.append(f"{' · '.join(loader.active_names())}", style="green")
     if loader.broken_names():
-        right.append(f"\n  法则裂缝  {', '.join(loader.broken_names())}", style="red dim")
+        right.append("\n  裂缝  ", style="red dim")
+        right.append(f"{' · '.join(loader.broken_names())}", style="red")
 
-    prayers = [p for p in pool.living if p.prayer_pending]
     if prayers:
-        right.append(f"\n\n  祈祷  {', '.join(p.name for p in prayers)}", style="yellow")
+        right.append("\n\n  祈祷\n", style="yellow dim")
+        for p in prayers[:4]:
+            right.append(f"    ◆  {p.name}\n", style="yellow")
+        if len(prayers) > 4:
+            right.append(f"    … 另有 {len(prayers)-4} 人\n", style="yellow dim")
 
-    named_living = len(pool.living)
-    named_dead = len(pool.archived)
-    right.append(f"\n\n  命名居民  {named_living} 人  已故 {named_dead}", style="dim")
+    if notables:
+        right.append("\n  异人  ", style="dim")
+        right.append(f"{'、'.join(n.name for n in notables)}", style="bright_white")
 
-    console.print(Columns([Panel(left, box=box.SIMPLE), Panel(right, box=box.SIMPLE)],
-                          equal=True))
+    console.print(Columns(
+        [Panel(left, box=box.SIMPLE, padding=(0, 1)),
+         Panel(right, box=box.SIMPLE, padding=(0, 1))],
+        equal=True
+    ))
 
 
 def render_world_map(world, pool):
-    """世界感知图：左侧地图 + 右侧居民名单。"""
+    """世界感知图：粗笔草图风格。每格 2 字符宽，地形成片。"""
+    # 每个逻辑格子渲染 2 个字符，通过重复地形符号形成「笔触」
     grid_char: list[list[str]] = [[" " for _ in range(_MAP_W)] for _ in range(_MAP_H)]
-    grid_style: list[list[str]] = [["grey35" for _ in range(_MAP_W)] for _ in range(_MAP_H)]
+    grid_style: list[list[str]] = [["grey30" for _ in range(_MAP_W)] for _ in range(_MAP_H)]
 
     seed = world.world_year
     for y in range(_MAP_H):
@@ -113,59 +122,70 @@ def render_world_map(world, pool):
             grid_char[y][x] = ch
             grid_style[y][x] = st
 
-    # 变异标记
-    mut_symbols = {1: ("◌", "grey70"), 2: ("●", "yellow"), 3: ("⬡", "bright_red")}
-    for i, m in enumerate(world.active_mutations):
-        mh = int(hashlib.md5(f"{m.mutation_id}{i}".encode()).hexdigest(), 16)
-        mx, my = (mh * 7) % _MAP_W, ((mh * 13) >> 8) % _MAP_H
-        grid_char[my][mx], grid_style[my][mx] = mut_symbols.get(m.tier, ("?", "white"))
-
-    # NPC：按信仰显示不同颜色，祈祷中显示 ✦
+    # NPC 位置：用汉字（2 字符宽）直接覆盖地形
+    npc_cells: dict[tuple[int, int], object] = {}
     for p in pool.living:
-        px, py = _name_pos(p.name, _MAP_W - 2, _MAP_H)
-        if p.prayer_pending:
-            grid_char[py][px] = "✦"
-            grid_style[py][px] = "bold yellow"
-        else:
-            grid_char[py][px] = p.name[0]
-            grid_style[py][px] = "bold bright_cyan" if p.faith_in_god > 0.3 else "bold white"
+        px, py = _name_pos(p.name, _MAP_W - 1, _MAP_H)
+        npc_cells[(px, py)] = p
 
-    # 渲染地图
+    # 渲染主地图
     map_text = Text()
-    for row_c, row_s in zip(grid_char, grid_style):
-        map_text.append(" ")
-        for ch, st in zip(row_c, row_s):
-            map_text.append(ch + " ", style=st)
+    for y, (row_c, row_s) in enumerate(zip(grid_char, grid_style)):
+        map_text.append("  ")
+        x = 0
+        while x < _MAP_W:
+            if (x, y) in npc_cells:
+                p = npc_cells[(x, y)]
+                if p.prayer_pending:
+                    map_text.append(p.name[0], style="bold yellow on grey11")
+                elif p.faith_in_god > 0.4:
+                    map_text.append(p.name[0], style="bold bright_cyan on grey11")
+                else:
+                    map_text.append(p.name[0], style="bold white on grey11")
+                x += 1  # 汉字占 2 显示宽度，相当于占用一格但视觉宽度匹配两个 ASCII 地形字符
+            else:
+                ch, st = row_c[x], row_s[x]
+                map_text.append(ch + ch, style=st)
+                x += 1
         map_text.append("\n")
 
-    legend = Text("\n ")
-    legend.append("  平原", style="grey35")
-    legend.append("  ≈ 水域", style="blue")
-    legend.append("  ▪ 林地", style="green")
-    legend.append("  ▲ 山地", style="yellow")
-    legend.append("  ⬡ 变异", style="bright_red")
-    legend.append("  ✦ 祈祷", style="yellow")
+    # 图例
+    legend = Text("\n  ")
+    legend.append(".. ", style="grey30")
+    legend.append("平原   ", style="dim")
+    legend.append("~~ ", style="blue")
+    legend.append("水域   ", style="dim")
+    legend.append("TT ", style="green")
+    legend.append("林地   ", style="dim")
+    legend.append("^^ ", style="yellow")
+    legend.append("山地", style="dim")
 
-    # 居民名单（右侧面板）
+    # 右侧居民名单
     roster = Text()
     roster.append("  居民\n\n", style="bold dim")
-    for p in sorted(pool.living, key=lambda x: x.birth_year):
-        bar = "█" * int(p.faith_in_god * 5) + "░" * (5 - int(p.faith_in_god * 5))
-        flag = "✦" if p.prayer_pending else ("★" if p.is_notable else " ")
-        name_style = "yellow" if p.prayer_pending else ("bright_white" if p.is_notable else "white")
-        roster.append(f" {flag} {p.name}", style=name_style)
-        roster.append(f"  [{bar}]\n", style="cyan dim")
+    for p in sorted(pool.living, key=lambda x: (not x.is_notable, x.birth_year)):
+        filled = int(p.faith_in_god * 5)
+        bar = "●" * filled + "·" * (5 - filled)
+        if p.prayer_pending:
+            flag, nstyle = "◆", "yellow"
+        elif p.is_notable:
+            flag, nstyle = "★", "bright_white"
+        else:
+            flag, nstyle = " ", "white"
+        roster.append(f"  {flag} {p.name}  ", style=nstyle)
+        roster.append(bar + "\n", style="cyan dim")
     if pool.archived:
-        roster.append(f"\n  已故 {len(pool.archived)} 人", style="dim")
+        roster.append(f"\n  已故 {len(pool.archived)} 人", style="red dim")
 
-    left = Panel(Text.assemble(map_text, legend), border_style="dim", padding=(0, 0))
-    right = Panel(roster, border_style="dim", padding=(0, 0))
+    map_panel = Panel(Text.assemble(map_text, legend), border_style="grey30",
+                      padding=(0, 1))
+    roster_panel = Panel(roster, border_style="grey30", padding=(0, 1))
 
     console.print(
-        f"  [bold]世界感知图[/bold]  "
+        f"\n  [bold]世界感知图[/bold]  "
         f"[dim]{world.year_display()} · {world.current_era}[/dim]"
     )
-    console.print(Columns([left, right], equal=False))
+    console.print(Columns([map_panel, roster_panel], equal=False))
 
 
 def render_population_table(pool, world):
@@ -198,27 +218,44 @@ def render_population_table(pool, world):
 
 
 def render_person_timeline(person, world):
-    """某人的完整人生时间线：信仰条/血脉/事件流。"""
-    status = ("已故" if person.death_year
-              else f"{person.life_stage(world.world_year)} · {person.age(world.world_year)}岁")
+    """某人的完整人生时间线。"""
+    age = person.age(world.world_year)
+    if person.death_year:
+        status = f"已故 · 享年 {age}"
+        status_style = "red dim"
+    else:
+        status = f"{person.life_stage(world.world_year)} · {age}岁"
+        status_style = "bright_white"
 
     header = Text()
-    header.append(f"【{person.name}】  ", style="bold bright_white")
-    header.append(status + "\n", style="dim")
-    header.append(f"  性格  {'、'.join(person.traits)}\n", style="dim")
-    header.append(f"  出身  {person.background}\n", style="dim")
-    header.append("  信仰  ")
+    header.append(f"  {person.name}", style="bold bright_white")
+    if person.is_notable:
+        header.append("  ★", style="bright_yellow")
+    header.append(f"    {status}\n", style=status_style)
+    header.append(f"  ─" * 30 + "\n", style="grey30")
+
+    header.append(f"  性格    ", style="dim")
+    header.append(f"{'、'.join(person.traits)}\n", style="white")
+    header.append(f"  出身    ", style="dim")
+    header.append(f"{person.background}\n", style="white")
+    header.append(f"  信仰    ", style="dim")
     header.append(_faith_bar(person.faith_in_god))
+
     if person.parent_names:
-        header.append(f"\n  父母  {', '.join(person.parent_names)}", style="dim")
+        header.append(f"\n  父母    ", style="dim")
+        header.append(f"{'、'.join(person.parent_names)}", style="white")
     if person.children_names:
-        header.append(f"\n  子女  {', '.join(person.children_names)}", style="dim")
+        header.append(f"\n  子女    ", style="dim")
+        header.append(f"{'、'.join(person.children_names)}", style="white")
     if person.inherited_memory:
-        header.append(f"\n  遗记  {person.inherited_memory}", style="italic dim")
+        header.append(f"\n  遗记    ", style="dim")
+        header.append(f"{person.inherited_memory}", style="italic grey62")
 
     if not person.life_events:
-        console.print(Panel(Text.assemble(header, Text("\n\n  （暂无记录）", style="dim")),
-                            border_style="dim"))
+        console.print(Panel(
+            Text.assemble(header, Text("\n\n  （暂无记录）", style="dim")),
+            border_style="grey30", padding=(1, 2)
+        ))
         return
 
     by_year: dict[int, list] = {}
@@ -226,58 +263,31 @@ def render_person_timeline(person, world):
         by_year.setdefault(ev.year, []).append(ev)
 
     type_icons = {
-        "birth": ("◉", "green"), "witness": ("◎", "cyan"), "mutation": ("⬡", "yellow"),
-        "encounter": ("◈", "blue"), "autonomous": ("→", "white"), "death": ("✕", "red"),
-        "growth": ("↑", "green"), "prayer": ("✦", "yellow"), "miracle": ("★", "bright_yellow"),
-        "divine": ("∞", "magenta"), "memory": ("~", "dim"),
+        "birth":      ("○", "green"),         "witness":    ("◎", "cyan"),
+        "mutation":   ("◉", "yellow"),        "encounter":  ("◇", "blue"),
+        "autonomous": ("→", "grey62"),        "death":      ("✕", "red"),
+        "growth":     ("↑", "green"),         "prayer":     ("◆", "yellow"),
+        "miracle":    ("✦", "bright_yellow"), "divine":     ("◇", "magenta"),
+        "memory":     ("~", "grey50"),
+    }
+    labels = {
+        "birth": "出生", "witness": "见证", "mutation": "变异",
+        "encounter": "相遇", "autonomous": "自发", "death": "离世",
+        "growth": "成长", "prayer": "祈祷", "miracle": "神迹",
+        "divine": "神明", "memory": "遗记",
     }
 
-    timeline = Text.assemble(header, Text("\n"))
+    timeline = Text.assemble(header, Text("\n\n"))
     for yr in sorted(by_year.keys()):
-        timeline.append(f"\n  ── 第{yr}年 ──\n", style="dim")
+        timeline.append(f"\n  · 第 {yr} 年\n", style="grey58")
         for ev in by_year[yr]:
             icon, style = type_icons.get(ev.event_type, ("·", "white"))
-            labels = {"birth": "出生", "witness": "见证", "mutation": "变异",
-                      "encounter": "相遇", "autonomous": "自发", "death": "离世",
-                      "growth": "成长", "prayer": "祈祷", "miracle": "神迹",
-                      "divine": "神明感知", "memory": "记忆碎片"}
             label = labels.get(ev.event_type, ev.event_type)
-            timeline.append(f"    {icon} [{label}] ", style=style)
-            timeline.append(ev.description + "\n", style="white")
+            timeline.append(f"      {icon}  ", style=style)
+            timeline.append(f"{label}  ", style="dim")
+            timeline.append(f"{ev.description}\n", style="white")
 
-    console.print(Panel(timeline, border_style="dim"))
-
-
-def render_mutations(world):
-    """活跃变异面板。"""
-    if not world.active_mutations:
-        console.print(Panel("  （无活跃变异）", title="变异", border_style="dim"))
-        return
-    t = Table(box=box.SIMPLE, header_style="bold", border_style="grey35", show_header=True)
-    t.add_column("层级", min_width=6)
-    t.add_column("目标", min_width=10)
-    t.add_column("描述")
-    t.add_column("扩散", justify="right", min_width=4)
-    tier_info = {1: ("◈ 表层", "grey70"), 2: ("◉ 功能", "yellow"), 3: ("⬡ 本质", "bright_red")}
-    for m in world.active_mutations:
-        label, style = tier_info.get(m.tier, ("?", "white"))
-        t.add_row(Text(label, style=style), m.target_name, m.description, str(m.spread_count))
-    console.print(Panel(t, title="活跃变异", border_style="dim"))
-
-
-def render_myths(myths: list):
-    """世界神话库展示。"""
-    if not myths:
-        console.print(Panel("  （世界尚无神话）", title="世界神话", border_style="dim"))
-        return
-    content = Text()
-    for m in myths[-5:]:
-        content.append(f"  《{m['myth_name']}》\n", style="bold bright_white")
-        content.append(f"  {m['myth_text']}\n", style="italic")
-        if m.get("cultural_effect"):
-            content.append(f"  影响：{m['cultural_effect']}\n", style="dim")
-        content.append("\n")
-    console.print(Panel(content, title="世界神话", border_style="dim"))
+    console.print(Panel(timeline, border_style="grey30", padding=(1, 2)))
 
 
 def render_prayers(prayers: list):
@@ -308,22 +318,6 @@ def render_modules(loader):
     for n in broken:
         content.append(f"  ✗ {n}（修复中）\n", style="red")
     console.print(Panel(content, title="法则", border_style="dim"))
-
-
-def render_entities(active_entities: list):
-    """特殊人物面板。"""
-    if not active_entities:
-        console.print(Panel("  （暂无特殊人物）", title="特殊人物", border_style="dim"))
-        return
-    content = Text()
-    for e in active_entities:
-        content.append(f"  {e.name}  ", style="bold bright_white")
-        content.append(f"{'、'.join(e.traits)}  ", style="dim")
-        content.append(f"第{e.age}/{e.max_age}年\n", style="dim")
-        content.append(f"    正在：{e.current_focus}\n", style="italic")
-        if e.mutations:
-            content.append(f"    变异：{'；'.join(e.mutations)}\n", style="yellow")
-    console.print(Panel(content, title="特殊人物", border_style="dim"))
 
 
 def render_story(new_events: list):
@@ -373,34 +367,46 @@ def render_oracle(question: str, result: dict):
                         border_style="magenta dim" if known else "dim"))
 
 
+_EVENT_STYLES = [
+    (("[离世]", "✕"),               "·", "red"),
+    (("[新生]",),                    "○", "green"),
+    (("[祈祷]",),                    "◆", "yellow"),
+    (("[变异", "扩散"),              "◉", "yellow"),
+    (("[法则异常]", "[崩溃]"),       "✕", "red"),
+    (("[涌现]", "[系统进化]"),       "✦", "bright_green"),
+    (("[自主]",),                    "→", "grey62"),
+    (("[异类出现]",),                "★", "bright_yellow"),
+    (("[神迹]", "[奇迹]"),           "✦", "bright_yellow"),
+    (("[传话]", "[神明凝视]"),       "◇", "magenta"),
+]
+
+
 def print_event(text: str):
     """打印世界事件流（带样式）。"""
     if not text.strip():
         return
-    if "[离世]" in text or "✕" in text:
-        console.print(text, style="dim red")
-    elif "[新生]" in text:
-        console.print(text, style="dim green")
-    elif "[祈祷]" in text:
-        console.print(text, style="yellow")
-    elif "[变异" in text or "扩散" in text:
-        console.print(text, style="yellow dim")
-    elif "[法则异常]" in text or "[崩溃]" in text:
-        console.print(text, style="red")
-    elif "[涌现]" in text or "[系统进化]" in text:
-        console.print(text, style="bright_green")
-    elif "★" in text:
-        console.print(text, style="bright_yellow")
-    else:
-        console.print(text, style="dim")
+    for triggers, marker, color in _EVENT_STYLES:
+        if any(tag in text for tag in triggers):
+            stripped = text.lstrip("\n ")
+            indent = text[:len(text) - len(text.lstrip("\n"))]
+            console.print(f"{indent}  {marker}  ", style=color, end="")
+            console.print(stripped.lstrip(), style=color if color != "grey62" else "dim")
+            return
+    console.print(text, style="dim")
 
 
 def print_banner():
     """开场 banner。"""
-    banner = Text()
-    banner.append("  《无名之界》\n", style="bold bright_white")
-    banner.append("  Unnamed World — a god simulator\n", style="dim italic")
-    console.print(Panel(banner, border_style="dim", padding=(0, 2)))
+    console.print()
+    art = Text()
+    art.append("     ·   ·                 ·\n", style="grey42")
+    art.append("  ·       ", style="grey42")
+    art.append("《 无 名 之 界 》", style="bold bright_white")
+    art.append("       ·\n", style="grey42")
+    art.append("              ·       ·\n", style="grey42")
+    art.append("     U N N A M E D   W O R L D\n", style="dim")
+    art.append("   ─ ─ ─  a god simulator  ─ ─ ─", style="italic grey58")
+    console.print(Panel(art, border_style="grey30", padding=(1, 4)))
 
 
 def print_divider():

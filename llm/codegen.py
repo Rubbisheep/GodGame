@@ -40,7 +40,6 @@ state_manager.world (WorldState):
   .current_era: str         # 当前时代名
   .tech_and_culture_tags: list[str]
   .tendency_vectors: dict[str, float]
-  .active_mutations: list[Mutation]
   .apply_population_change(delta: int)
   .accumulate_tendency(tags: list[str])
   .summary() -> str
@@ -61,29 +60,70 @@ Person:
   .age(current_year: int) -> int
   .life_stage(current_year: int) -> str
 
-state_manager.active_entities: list[SpecialEntity]
-SpecialEntity: .name, .traits, .current_focus, .risk_level, .mutations, .legacy_tags
-
 state_manager.module_data[MODULE_NAME] -> dict  # 模块持久化存储（register中初始化）
 state_manager.add_event(text: str)              # 向事件日志追加
 state_manager.request_upgrade(module_name, proposal, proposer)  # 请求升级
+
+模块是纯叠加性的：可以读所有状态、添加事件、修改 module_data 和调用 state_manager 的公开方法，
+但不要替换或覆盖核心 tick 逻辑（人口老化/出生/祈祷、NPC 自主行为）。核心只负责「世界的最小物理」，
+其余一切 —— 变异、神话、异人识别、贸易、战争、瘟疫、仪式、其他神明…… —— 都由你们这些模块承担。
+"""
+
+# 涌现系统调色板：供 emergence 判定和模块命名时参考
+EMERGENCE_PALETTE = """
+可能涌现的系统类别（仅作参考，不限于此）：
+
+· 世界物理：
+  - mutation_system  变异机制（物/地/人的意外扭曲，可分层、可扩散）
+  - weather_system   天象与季节
+  - disease_system   疾病与瘟疫传播
+
+· 生命与个体：
+  - prophet_system   先知 / 异人识别（标记 is_notable）
+  - bloodline_system 血脉与遗传
+  - dream_system     梦境与预兆
+
+· 社会结构：
+  - trade_system     贸易、交换、度量衡
+  - kinship_system   氏族、血亲、婚姻
+  - war_system       冲突、派系、武力
+  - migration_system 迁徙与定居
+
+· 精神与文化：
+  - myth_system      口传神话与故事沉淀
+  - ritual_system    宗教仪式、节日、禁忌
+  - oracle_system    占卜、征兆解读
+  - taboo_system     禁忌与污名
+
+· 超自然：
+  - other_deities    其他神明的存在与干涉
+  - spirit_system    精灵 / 祖灵 / 物之灵
+  - paranormal       灵异现象、维度裂隙
+
+判断应基于：近期事件是否真的暗示某种系统正在自然出现，而非凭空臆造。
 """
 
 
-def check_emergence(world_state, pool, active_entities,
-                    recent_events: list, existing_modules: list) -> dict:
+def check_emergence(world_state, pool, recent_events: list,
+                    existing_modules: list) -> dict:
     if USE_MOCK:
         return {"should_generate": False}
 
     events_text = "\n".join(recent_events[-20:]) if recent_events else "无"
     existing_text = ", ".join(existing_modules) if existing_modules else "无"
-    system = WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{EMERGENCE}"
+    system = (
+        WORLD_BIBLE
+        + f"\n\n{EMERGENCE_PALETTE}"
+        + f"\n\n只返回如下 JSON，不加任何其他文字：\n{EMERGENCE}"
+    )
     user = (
         f"世界状态：\n{world_state.summary()}\n\n"
         f"近期事件：\n{events_text}\n\n"
         f"已存在的扩展模块：{existing_text}\n\n"
-        "判断是否有一个全新的系统正在自然涌现（如贸易、宗教、战争、天文等）。"
-        "只有当世界状态真的积累了足够的迹象时才生成。返回 JSON。"
+        "判断是否有一个全新的系统正在自然涌现。\n"
+        "注意：核心游戏极简（只有时间、人、信仰、玩家干预、NPC 自主），"
+        "任何具体的世界物理（变异、神话、异人、其他神明、疾病、贸易、战争……）都应由模块承担。\n"
+        "只有当近期事件真的暗示某类系统正在出现时才生成。返回 JSON。"
     )
     try:
         return json.loads(call(system, user, max_tokens=300))

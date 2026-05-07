@@ -5,7 +5,7 @@ from .schemas import ACTION, mock_action
 
 
 def get_action_result(action_type: str, subject: str,
-                      world_state, active_entities, population_pool) -> dict:
+                      world_state, population_pool) -> dict:
     if USE_MOCK:
         names = [p.name for p in population_pool.living]
         return mock_action(action_type, subject, names)
@@ -13,11 +13,6 @@ def get_action_result(action_type: str, subject: str,
     people_list = "\n".join(
         f"- {p.name}（{'、'.join(p.traits)}，{p.life_stage(world_state.world_year)}）"
         for p in population_pool.living[:20]
-    ) or "无"
-    entity_lines = "\n".join(
-        f"- {e.name}（{'、'.join(e.traits)}）：{e.current_focus}"
-        + (f" [变异：{'；'.join(e.mutations)}]" if e.mutations else "")
-        for e in active_entities
     ) or "无"
 
     avg_faith = sum(p.faith_in_god for p in population_pool.living) / max(1, len(population_pool.living))
@@ -35,7 +30,6 @@ def get_action_result(action_type: str, subject: str,
     user = (
         f"世界状态：\n{world_state.summary()}\n\n"
         f"命名居民（部分）：\n{people_list}\n\n"
-        f"特殊人物：\n{entity_lines}\n\n"
         f"{contact_ctx}\n\n"
         f"神明执行【{action_type}】：{subject}\n返回 JSON。"
     )

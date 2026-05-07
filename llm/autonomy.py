@@ -4,7 +4,7 @@ from .bible import WORLD_BIBLE
 from .schemas import NPC_AUTONOMY, mock_npc_autonomy
 
 
-def generate_npc_autonomy(world_state, population_pool, active_entities) -> dict:
+def generate_npc_autonomy(world_state, population_pool) -> dict:
     if USE_MOCK:
         names = [p.name for p in population_pool.living]
         return mock_npc_autonomy(names)

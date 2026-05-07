@@ -29,7 +29,6 @@ class MetaSystem:
         emergence = check_emergence(
             world_state=state_manager.world,
             pool=state_manager.pool,
-            active_entities=state_manager.active_entities,
             recent_events=self._turn_log,
             existing_modules=existing,
         )

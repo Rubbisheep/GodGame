@@ -1,10 +1,9 @@
-"""初始世界生成：人口、出生、特殊实体。"""
+"""初始世界生成：人口、出生。"""
 import json
 import random
-from .client import call, safe_json, USE_MOCK
+from .client import call, USE_MOCK
 from .bible import WORLD_BIBLE
-from .schemas import INIT_POPULATION, ENTITY, BIRTH
-from .schemas import mock_init_people, mock_entity, mock_birth
+from .schemas import INIT_POPULATION, BIRTH, mock_init_people, mock_birth
 
 
 def generate_initial_population(world_state, count: int = 10) -> dict:
@@ -21,14 +20,6 @@ def generate_initial_population(world_state, count: int = 10) -> dict:
         "背景要具体真实，体现石器时代的生活细节。返回 JSON。"
     )
     return json.loads(call(system, user, max_tokens=1200))
-
-
-def generate_new_entity(world_state) -> dict:
-    if USE_MOCK:
-        return mock_entity(world_state.current_era)
-    system = WORLD_BIBLE + f"\n\n只返回如下 JSON，不加任何其他文字：\n{ENTITY}"
-    user = f"世界状态：\n{world_state.summary()}\n\n生成一位悄然崛起的特殊个体。返回 JSON。"
-    return json.loads(call(system, user, max_tokens=256))
 
 
 def generate_birth(world_state, population_pool) -> dict:
