@@ -1,6 +1,7 @@
 """
 世界模拟器 — 后台线程持续推进世界时间。
-每 TICK_INTERVAL 秒真实时间 = 世界 1 年。
+基准：TICK_INTERVAL 秒真实时间 = 世界 1 年。
+玩家可通过倍速 (speed_multiplier) 调节流速；也可以 fast_forward 主动快进若干年。
 启动时计算离线时长并快进补偿（上限 MAX_CATCHUP 年）。
 """
 import threading
@@ -9,9 +10,10 @@ import queue
 import json
 from pathlib import Path
 
-TICK_INTERVAL = 300  # 5分钟真实时间 = 世界1年
+TICK_INTERVAL = 3600  # 基准：1 小时真实时间 = 世界 1 年
 AUTOSAVE_EVERY = 5
 MAX_CATCHUP = 100
+MIN_SPEED, MAX_SPEED = 0.1, 3600.0  # 极端值防呆
 TIMESTAMP_KEY = "__last_tick_time__"
 
 _SAVE_FILE = Path(__file__).parent.parent / "saves" / "savegame.json"
@@ -26,6 +28,7 @@ class WorldSimulator:
         self._ticks_since_save = 0
         self._thread: threading.Thread | None = None
         self._bg_ticked = False  # 后台 tick 发生过，下次刷新时自动显示状态
+        self.speed_multiplier: float = 1.0  # 1.0 = 1h/年；60.0 = 1min/年，等等
 
     # ── 启动/停止 ───────────────────────────────────────────────────────────
 
@@ -48,10 +51,29 @@ class WorldSimulator:
 
     def _loop(self):
         while self._running:
-            time.sleep(TICK_INTERVAL)
+            interval = TICK_INTERVAL / max(MIN_SPEED, self.speed_multiplier)
+            time.sleep(interval)
             if self._running:
                 self._tick(silent=False)
                 self._bg_ticked = True
+
+    # ── 速度控制 ─────────────────────────────────────────────────────────────
+
+    def set_speed(self, multiplier: float) -> float:
+        """设置倍速并返回实际应用的值（被 clamp 过）。"""
+        self.speed_multiplier = max(MIN_SPEED, min(MAX_SPEED, float(multiplier)))
+        return self.speed_multiplier
+
+    def fast_forward(self, years: int) -> int:
+        """主动快进 N 年（阻塞）。返回实际推进的年数。复用 catchup 的静默机制。"""
+        actual = max(0, min(int(years), MAX_CATCHUP))
+        if actual <= 0:
+            return 0
+        with self.lock:
+            for _ in range(actual):
+                self._tick(silent=False)
+        self._bg_ticked = True
+        return actual
 
     def _tick(self, silent: bool = False):
         with self.lock:

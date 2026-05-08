@@ -54,7 +54,7 @@ def _terrain(x: int, y: int, seed: int) -> tuple[str, str]:
 
 # ── 渲染函数 ─────────────────────────────────────────────────────────────────
 
-def render_status(world, pool, loader):
+def render_status(world, pool, loader, speed_multiplier: float = 1.0):
     """主状态面板：世界此刻的快照。"""
     avg_faith = sum(p.faith_in_god for p in pool.living) / max(1, len(pool.living))
     prayers = [p for p in pool.living if p.prayer_pending]
@@ -74,6 +74,9 @@ def render_status(world, pool, loader):
     left.append(f"{len(pool.living)}", style="bright_white")
     if pool.archived:
         left.append(f"  已故 {len(pool.archived)}", style="red dim")
+    if speed_multiplier != 1.0:
+        left.append(f"\n\n  时流    ", style="dim")
+        left.append(f"{speed_multiplier:g}x", style="magenta")
 
     # 右：世界正在成为什么
     right = Text()

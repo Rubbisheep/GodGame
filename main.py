@@ -26,7 +26,7 @@ from llm import generate_life_snapshot, generate_oracle_query
 import cli.display as display
 
 
-def _help(manager=None):
+def _help(manager=None, sim=None):
     yr = manager.world.world_year if manager else "?"
     last_gift = manager._last_gift_year if manager else -999
     last_miracle = manager._last_miracle_year if manager else -999
@@ -37,6 +37,8 @@ def _help(manager=None):
     gift_style   = "red" if gift_wait > 0 else "green"
     miracle_label  = f"冷却中 {miracle_wait}年" if miracle_wait > 0 else "可用"
     miracle_style  = "red" if miracle_wait > 0 else "green"
+
+    speed = sim.speed_multiplier if sim else 1.0
 
     t = Text()
     t.append("── 干预 ──\n", style="bold dim")
@@ -55,6 +57,13 @@ def _help(manager=None):
     t.append("  凝视 / gaze   <名字或地点>  ", style="cyan")
     t.append("深度洞察，不消耗回合\n\n", style="dim")
 
+    t.append("── 时流 ──\n", style="bold dim")
+    t.append(f"  加速 / speed  <倍数>        ", style="cyan")
+    t.append(f"当前 {speed:g}x（基准 1h/年）", style="dim")
+    t.append("  例：加速 12 / speed 60\n", style="dim italic")
+    t.append("  快进 / wait   <年数>        ", style="cyan")
+    t.append("一次性推进若干年（上限 100）\n\n", style="dim")
+
     t.append("── 查看 ──\n", style="bold dim")
     t.append("  故事 / story       ", style="cyan")
     t.append("实时查看当前世界事件流\n", style="dim")
@@ -69,7 +78,7 @@ def _help(manager=None):
     t.append("  祈祷 / prayers     ", style="cyan")
     t.append("当前等待回应的祈祷\n", style="dim")
     t.append("  法则 / weave       ", style="cyan")
-    t.append("世界自然涌现的法则法则\n\n", style="dim")
+    t.append("世界自然涌现的法则\n\n", style="dim")
 
     t.append("  退出 / quit / exit", style="dim")
 
@@ -87,7 +96,7 @@ def _flush_events(sim: WorldSimulator, manager: StateManager,
         if auto_status and bg_ticked:
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
             )
 
 
@@ -121,9 +130,9 @@ def run():
     cursor[0] = len(manager.event_log)  # 开局事件标记为已读
 
     sim.player_query(
-        lambda: display.render_status(manager.world, manager.pool, manager.loader)
+        lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
     )
-    _help(manager)
+    _help(manager, sim)
 
     while True:
         _flush_events(sim, manager, cursor)
@@ -153,11 +162,11 @@ def run():
 
         # ── 查看指令 ──────────────────────────────────────────────────────────
         elif cmd in ("帮助", "help", "h", "?"):
-            sim.player_query(lambda: _help(manager))
+            sim.player_query(lambda: _help(manager, sim))
 
         elif cmd in ("状态", "status", "s"):
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
             )
 
         elif cmd in ("地图", "map", "m"):
@@ -210,6 +219,53 @@ def run():
         elif cmd in ("法则", "weave", "modules"):
             sim.player_query(lambda: display.render_modules(manager.loader))
 
+        # ── 时流控制 ──────────────────────────────────────────────────────────
+        elif cmd in ("加速", "speed", "pace"):
+            if not arg1:
+                display.console.print(
+                    f"  当前速度 {sim.speed_multiplier:g}x（基准 1 小时/年）。用法：加速 <倍数>，如 加速 12",
+                    style="dim"
+                )
+                continue
+            try:
+                mult = float(arg1)
+            except ValueError:
+                display.console.print("  倍数必须是数字。例：加速 12", style="red dim")
+                continue
+            applied = sim.set_speed(mult)
+            real_sec_per_year = 3600 / applied
+            if real_sec_per_year >= 60:
+                pace_desc = f"{real_sec_per_year/60:.1f} 分钟/年"
+            else:
+                pace_desc = f"{real_sec_per_year:.1f} 秒/年"
+            display.console.print(
+                f"  ◷ 时流已调至 [bold]{applied:g}x[/bold]（约 {pace_desc}）",
+                style="magenta"
+            )
+
+        elif cmd in ("快进", "wait", "ff"):
+            if not arg1:
+                display.console.print("  用法：快进 <年数>  /  wait 20", style="dim")
+                continue
+            try:
+                years = int(arg1)
+            except ValueError:
+                display.console.print("  年数必须是整数。例：快进 20", style="red dim")
+                continue
+            if years <= 0:
+                display.console.print("  年数需 > 0。", style="red dim")
+                continue
+            display.print_divider()
+            display.console.print(
+                f"  [dim]你把注意力下压，迫使时间加速流过{min(years, 100)}年……[/dim]"
+            )
+            actual = sim.fast_forward(years)
+            display.console.print(
+                f"  ══ 世界推进了 {actual} 年 ══",
+                style="italic dim"
+            )
+            _flush_events(sim, manager, cursor, auto_status=True)
+
         # ── 干预指令（推进回合）──────────────────────────────────────────────
         elif cmd in ("赐予", "gift", "give"):
             if not arg1:
@@ -222,7 +278,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
             )
 
         elif cmd in ("施放", "cast", "miracle"):
@@ -236,7 +292,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
             )
 
         elif cmd in ("回应", "respond"):
@@ -259,7 +315,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader)
+                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
             )
 
         elif cmd in ("问", "ask", "oracle"):
