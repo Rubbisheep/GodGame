@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 *.pyo
-savegame.json
+saves/
 test_write.py
 .claude/
 modules/*.py

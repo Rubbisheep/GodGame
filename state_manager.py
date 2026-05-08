@@ -19,7 +19,8 @@ from llm import (
 from evolution import ModuleLoader, MetaSystem, MODULES_DIR
 from systems import SYSTEMS
 
-SAVE_FILE = Path(__file__).parent / "savegame.json"
+SAVE_DIR = Path(__file__).parent / "saves"
+SAVE_FILE = SAVE_DIR / "savegame.json"
 GIFT_ABSORB_YEARS = 8
 MIRACLE_COOLDOWN_YEARS = 15
 
@@ -240,6 +241,7 @@ class StateManager:
     # ── 存档 / 读档 ──────────────────────────────────────────────────────
 
     def save(self, path: Path = SAVE_FILE):
+        path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "world": self.world.to_dict(),
             "pool": self.pool.to_dict(),

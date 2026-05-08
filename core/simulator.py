@@ -14,7 +14,7 @@ AUTOSAVE_EVERY = 5
 MAX_CATCHUP = 100
 TIMESTAMP_KEY = "__last_tick_time__"
 
-_SAVE_FILE = Path(__file__).parent.parent / "savegame.json"
+_SAVE_FILE = Path(__file__).parent.parent / "saves" / "savegame.json"
 
 
 class WorldSimulator:
