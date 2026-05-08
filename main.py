@@ -1,3 +1,12 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "openai>=1.0.0",
+#     "python-dotenv>=1.0.0",
+#     "rich>=13.0.0",
+#     "httpx[socks]",
+# ]
+# ///
 """
 《无名之界》— 命令行神明模拟器
 输入「帮助」或「help」查看指令列表。
@@ -13,7 +22,7 @@ from rich.text import Text
 from state_manager import StateManager, SAVE_FILE, GIFT_ABSORB_YEARS, MIRACLE_COOLDOWN_YEARS
 from core.models import MIRACLE_COST, GIFT_COST
 from core.simulator import WorldSimulator, calc_catchup_years
-from llm import generate_life_snapshot, generate_npc_dialogue, generate_oracle_query
+from llm import generate_life_snapshot, generate_oracle_query
 import cli.display as display
 
 
@@ -39,8 +48,6 @@ def _help(manager=None):
     t.append("神力50  ", style="dim")
     t.append(miracle_label, style=miracle_style)
     t.append("  例：施放 丰收 / cast 瘟疫治愈\n", style="dim italic")
-    t.append("  传话 / talk   <名字> <内容>  ", style="cyan")
-    t.append("向某人传达神明意志（先知/使徒最敏感）\n", style="dim")
     t.append("  问   / ask    <问题>        ", style="cyan")
     t.append("以神明所见为据，回溯世界的脉络\n", style="dim")
     t.append("  回应 / respond <名字> <类型>", style="cyan")
@@ -254,31 +261,6 @@ def run():
             sim.player_query(
                 lambda: display.render_status(manager.world, manager.pool, manager.loader)
             )
-
-        elif cmd in ("传话", "talk"):
-            if not arg1 or not arg2:
-                display.console.print(
-                    "  用法：传话 <名字> <内容>  /  talk <名字> <内容>", style="dim"
-                )
-                continue
-            def _do_talk(name=arg1, msg=arg2):
-                person = manager.pool.get_by_name(name)
-                if not person or not person.is_alive():
-                    display.console.print(f"  未找到活着的「{name}」。", style="red dim")
-                    return
-                display.print_divider()
-                display.console.print(
-                    f"  [dim]你向 {person.name} 传达：「{msg}」[/dim]"
-                )
-                result = generate_npc_dialogue(person, msg, manager.world, manager.pool)
-                faith_delta = result.get("faith_delta", 0.0)
-                person.faith_in_god = max(0.0, min(1.0, person.faith_in_god + faith_delta))
-                action = result.get("action", "")
-                if action:
-                    person.add_event(manager.world.world_year, "divine", action)
-                display.render_dialogue(person, result)
-            sim.player_query(_do_talk)
-            continue
 
         elif cmd in ("问", "ask", "oracle"):
             if not arg1:

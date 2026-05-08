@@ -332,27 +332,6 @@ def render_story(new_events: list):
     print_divider()
 
 
-def render_dialogue(person, result: dict):
-    """展示神明传话的回应。"""
-    heard = result.get("heard", False)
-    speech = result.get("speech", "")
-    action = result.get("action", "")
-    faith_delta = result.get("faith_delta", 0.0)
-
-    t = Text()
-    t.append(f"  【{person.name}】\n", style="bold bright_white")
-    if not heard:
-        t.append("  （没有感知到神明的存在）\n", style="dim")
-    else:
-        t.append(f"  「{speech}」\n", style="italic white")
-        t.append(f"\n  → {action}\n", style="dim")
-        if faith_delta > 0:
-            t.append(f"  信仰 +{faith_delta:.0%}", style="cyan dim")
-        elif faith_delta < 0:
-            t.append(f"  信仰 {faith_delta:.0%}", style="red dim")
-    console.print(Panel(t, border_style="magenta dim"))
-
-
 def render_oracle(question: str, result: dict):
     """展示神明自询的回答。"""
     known = result.get("known", False)
@@ -377,7 +356,7 @@ _EVENT_STYLES = [
     (("[自主]",),                    "→", "grey62"),
     (("[异类出现]",),                "★", "bright_yellow"),
     (("[神迹]", "[奇迹]"),           "✦", "bright_yellow"),
-    (("[传话]", "[神明凝视]"),       "◇", "magenta"),
+    (("[神明凝视]",),                "◇", "magenta"),
 ]
 
 

@@ -1,4 +1,4 @@
-"""神明相关生成：祈祷回应、神明凝视、传话、自询、生活切片。"""
+"""神明相关生成：祈祷回应、神明凝视、自询、生活切片。"""
 import json
 from .client import call, USE_MOCK
 from .bible import WORLD_BIBLE
@@ -103,47 +103,6 @@ def generate_life_snapshot(world_state, pool, recent_events: list | None = None)
         return call(system, user, max_tokens=600)
     except Exception:
         return "（世界在继续，但神明的目光此刻难以聚焦。）"
-
-
-def generate_npc_dialogue(person, god_message: str, world_state, pool) -> dict:
-    """神明向某人传话，返回该人的回应与行为变化。"""
-    reception = (
-        "这个人是先知或使徒，对神明极度敏感，能清晰感知并回应神明的意志。"
-        if person.is_notable else
-        "这个人信仰较强，神明的话语像是某种内心涌现的直觉或梦境碎片。"
-        if person.faith_in_god > 0.4 else
-        "这个人信仰尚浅，神明的传话对他来说可能只是一闪而过的念头，甚至毫无感知。"
-    )
-    person_info = (
-        f"姓名：{person.name}  {person.life_stage(world_state.world_year)}·{person.age(world_state.world_year)}岁\n"
-        f"性格：{'、'.join(person.traits)}\n"
-        f"出身：{person.background}\n"
-        f"对神明的信仰：{person.faith_in_god:.0%}  是否被命运选中的异人：{person.is_notable}\n"
-        + (f"当前祈祷：{person.prayer_pending}\n" if person.prayer_pending else "")
-        + (f"近期经历：{person.life_events[-1].description if person.life_events else '无'}\n")
-    )
-    schema = '''{
-  "heard": true/false,
-  "speech": "此人说出或在心中回应的话（原声，不加引号说明）",
-  "action": "此人接下来会做的具体行为（一句话）",
-  "faith_delta": 0.05
-}'''
-    system = (
-        WORLD_BIBLE + "\n\n"
-        f"神明向凡人传话。{reception}\n\n"
-        f"只返回如下 JSON，不加任何其他文字：\n{schema}"
-    )
-    user = (
-        f"当前：{world_state.year_display()}  {world_state.current_era}\n\n"
-        f"此人信息：\n{person_info}\n"
-        f"神明传达的话语：「{god_message}」\n\n"
-        "根据此人的信仰程度和性格，写出他的感知与回应。"
-        "faith_delta 范围 -0.1 到 +0.15，视回应态度而定。"
-    )
-    try:
-        return json.loads(call(system, user, max_tokens=400))
-    except Exception:
-        return {"heard": False, "speech": "（没有任何回应）", "action": "继续原来的事", "faith_delta": 0.0}
 
 
 def generate_oracle_query(question: str, world_state, event_log: list) -> dict:

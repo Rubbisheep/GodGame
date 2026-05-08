@@ -79,9 +79,13 @@ EMERGENCE_PALETTE = """
   - disease_system   疾病与瘟疫传播
 
 · 生命与个体：
-  - prophet_system   先知 / 异人识别（标记 is_notable）
-  - bloodline_system 血脉与遗传
-  - dream_system     梦境与预兆
+  - prophet_system     先知 / 异人识别（标记 is_notable）
+  - receptivity_system 少数凡人开始能感知神明的存在（梦境、低语、目光），
+                        为玩家重新打开「向某人传话」的通道——但必须是世界长出来的能力，
+                        不是内置权限。触发条件通常是：长期高信仰、重大神迹见证者、
+                        或某种变异留下的后遗症。
+  - bloodline_system   血脉与遗传
+  - dream_system       梦境与预兆
 
 · 社会结构：
   - trade_system     贸易、交换、度量衡
