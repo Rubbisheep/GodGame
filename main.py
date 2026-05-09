@@ -76,9 +76,7 @@ def _help(manager=None, sim=None):
     t.append("  人 / person <名字> ", style="cyan")
     t.append("某人的完整人生时间线\n", style="dim")
     t.append("  祈祷 / prayers     ", style="cyan")
-    t.append("当前等待回应的祈祷\n", style="dim")
-    t.append("  法则 / weave       ", style="cyan")
-    t.append("世界自然涌现的法则\n\n", style="dim")
+    t.append("当前等待回应的祈祷\n\n", style="dim")
 
     t.append("  退出 / quit / exit", style="dim")
 
@@ -96,7 +94,7 @@ def _flush_events(sim: WorldSimulator, manager: StateManager,
         if auto_status and bg_ticked:
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
             )
 
 
@@ -130,7 +128,7 @@ def run():
     cursor[0] = len(manager.event_log)  # 开局事件标记为已读
 
     sim.player_query(
-        lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+        lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
     )
     _help(manager, sim)
 
@@ -166,7 +164,7 @@ def run():
 
         elif cmd in ("状态", "status", "s"):
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
             )
 
         elif cmd in ("地图", "map", "m"):
@@ -215,9 +213,6 @@ def run():
             sim.player_query(
                 lambda: display.render_prayers(manager.pool.pending_prayers())
             )
-
-        elif cmd in ("法则", "weave", "modules"):
-            sim.player_query(lambda: display.render_modules(manager.loader))
 
         # ── 时流控制 ──────────────────────────────────────────────────────────
         elif cmd in ("加速", "speed", "pace"):
@@ -278,7 +273,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
             )
 
         elif cmd in ("施放", "cast", "miracle"):
@@ -292,7 +287,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
             )
 
         elif cmd in ("回应", "respond"):
@@ -315,7 +310,7 @@ def run():
             display.console.print(result, style="white")
             display.print_divider()
             sim.player_query(
-                lambda: display.render_status(manager.world, manager.pool, manager.loader, sim.speed_multiplier)
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
             )
 
         elif cmd in ("问", "ask", "oracle"):

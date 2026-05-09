@@ -5,8 +5,10 @@
 基础物理（FOUNDATIONAL_MODULES）由内核保证在场：每次涌现检查时若缺失就自动生成，
 不走 LLM 判定。LLM 只负责具体形态和参数，不决定"要不要有"。
 其他一切（社会、文化、超自然……）照旧靠 LLM 读事件信号自行涌现。
+
+涌现行为对玩家完全静默——模块的存在通过它产出的世界事件被玩家感受到，
+而不是通过 [世界涌现] 这种元层通告。"系统/模块"是开发者概念，不暴露给玩家。
 """
-from pathlib import Path
 
 CHECK_INTERVAL = 3            # 检查间隔：每 N 年一次涌现机会（实际是否生成由 LLM 判断）
 MIN_FIRST_CHECK_YEAR = 20     # 婴儿期保护：前 N 年完全不检查涌现，给世界冷启动呼吸空间。
@@ -48,13 +50,16 @@ class MetaSystem:
         return (current_year - self._last_check_year) >= CHECK_INTERVAL
 
     def check_and_generate(self, state_manager, loader) -> list[str]:
+        """涌现检查：基础物理补缺 + LLM 判断有机涌现。
+        总是返回 []——玩家不该看到"系统涌现"这种元层概念。
+        模块的存在通过它产出的世界事件被玩家感受到，不通过通告。
+        """
         from llm import check_emergence, generate_module_code, MODULE_API_DOCS
 
         self._last_check_year = state_manager.world.world_year
         existing = set(loader.active_names() + loader.broken_names())
-        notices: list[str] = []
 
-        # ── 基础物理：缺失就补上 ─────────────────────────────────────────
+        # ── 基础物理：缺失就补上（静默） ────────────────────────────────
         for name, info in FOUNDATIONAL_MODULES.items():
             if name in existing:
                 continue
@@ -63,23 +68,26 @@ class MetaSystem:
                 world_state=state_manager.world, pool=state_manager.pool,
                 api_docs=MODULE_API_DOCS,
             )
-            ok, _ = loader.load(name, code, state_manager)
+            loader.load(name, code, state_manager)
             existing.add(name)
-            if ok:
-                notices.append(_describe_new_module(name, info["reason"]))
 
-        # ── 有机涌现：LLM 读事件判断 ─────────────────────────────────────
+        # ── 有机涌现：把现有模块的「名字 + 描述」一起喂给 LLM 帮助去重 ──
+        existing_with_desc = {
+            n: loader.get_description(n) or "(描述缺失)"
+            for n in existing
+        }
+
         emergence = check_emergence(
             world_state=state_manager.world,
             pool=state_manager.pool,
             recent_events=self._turn_log,
-            existing_modules=list(existing),
+            existing_modules_with_desc=existing_with_desc,
             years_since_last_emergence=(
                 state_manager.world.world_year - self._last_emergence_year
             ),
         )
         if not emergence.get("should_generate"):
-            return notices
+            return []
 
         reason = emergence.get("reason", "")
         module_name = emergence.get("module_name", "")
@@ -89,7 +97,7 @@ class MetaSystem:
         # LLM 不得覆盖基础物理（即使它忘了约束尝试重生成）
         if (not module_name or module_name in existing
                 or module_name in FOUNDATIONAL_MODULES):
-            return notices
+            return []
 
         code = generate_module_code(
             module_name=module_name, reason=reason, hint=hint,
@@ -97,21 +105,7 @@ class MetaSystem:
             api_docs=MODULE_API_DOCS, subtle=subtle,
         )
         ok, _ = loader.load(module_name, code, state_manager)
-        if ok:
-            # 伏笔模块不计入正式涌现冷却（玩家没意识到它存在）
-            # 也不发 [世界涌现] 通告——它只在背景里悄悄运作
-            if not subtle:
-                self._last_emergence_year = state_manager.world.world_year
-                notices.append(_describe_new_module(module_name, reason))
-        return notices
-
-
-def _describe_new_module(module_name: str, fallback_reason: str) -> str:
-    mod_file = Path(__file__).parent.parent / "modules" / f"{module_name}.py"
-    mod_desc = ""
-    if mod_file.exists():
-        for line in mod_file.read_text(encoding="utf-8").splitlines():
-            if "MODULE_DESCRIPTION" in line and "=" in line:
-                mod_desc = line.split("=", 1)[1].strip().strip('"\'')
-                break
-    return f"\n  [世界涌现] 一个新的秩序在世界中成形。\n    {mod_desc or fallback_reason}"
+        if ok and not subtle:
+            # 伏笔不计冷却。显形的也不通告，但要计冷却防止短期内连续显形
+            self._last_emergence_year = state_manager.world.world_year
+        return []

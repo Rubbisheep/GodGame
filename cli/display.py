@@ -54,7 +54,7 @@ def _terrain(x: int, y: int, seed: int) -> tuple[str, str]:
 
 # ── 渲染函数 ─────────────────────────────────────────────────────────────────
 
-def render_status(world, pool, loader, speed_multiplier: float = 1.0):
+def render_status(world, pool, speed_multiplier: float = 1.0):
     """主状态面板：世界此刻的快照。"""
     avg_faith = sum(p.faith_in_god for p in pool.living) / max(1, len(pool.living))
     prayers = [p for p in pool.living if p.prayer_pending]
@@ -86,13 +86,6 @@ def render_status(world, pool, loader, speed_multiplier: float = 1.0):
     right.append(f"{tags}\n", style="white")
     right.append("  倾向  ", style="dim")
     right.append(f"{tend}\n", style="white")
-
-    if loader.active_names():
-        right.append("\n  法则  ", style="dim")
-        right.append(f"{' · '.join(loader.active_names())}", style="green")
-    if loader.broken_names():
-        right.append("\n  裂缝  ", style="red dim")
-        right.append(f"{' · '.join(loader.broken_names())}", style="red")
 
     if prayers:
         right.append("\n\n  祈祷\n", style="yellow dim")
@@ -304,23 +297,6 @@ def render_prayers(prayers: list):
         content.append(p.prayer_pending + "\n", style="italic")
     content.append("\n  用「回应 <名字> <答应/无视/惩戒/赐福>」来回应", style="dim")
     console.print(Panel(content, title="当前祈祷", border_style="yellow dim"))
-
-
-def render_modules(loader):
-    """自生成模块状态面板。"""
-    active = loader.active_names()
-    broken = loader.broken_names()
-    if not active and not broken:
-        console.print(Panel("  （世界尚无法则涌现）", title="法则", border_style="dim"))
-        return
-    content = Text()
-    for n in active:
-        desc = loader.get_description(n)
-        content.append(f"  ✓ {n}  ", style="green")
-        content.append(desc + "\n", style="dim")
-    for n in broken:
-        content.append(f"  ✗ {n}（修复中）\n", style="red")
-    console.print(Panel(content, title="法则", border_style="dim"))
 
 
 def render_story(new_events: list):

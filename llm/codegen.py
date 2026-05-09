@@ -142,13 +142,19 @@ EMERGENCE_PALETTE = """
 
 
 def check_emergence(world_state, pool, recent_events: list,
-                    existing_modules: list,
+                    existing_modules_with_desc: dict,
                     years_since_last_emergence: int = 999) -> dict:
     if USE_MOCK:
         return {"should_generate": False}
 
     events_text = "\n".join(recent_events[-20:]) if recent_events else "无"
-    existing_text = ", ".join(existing_modules) if existing_modules else "无"
+    if existing_modules_with_desc:
+        existing_text = "\n".join(
+            f"  · {name}: {desc}"
+            for name, desc in existing_modules_with_desc.items()
+        )
+    else:
+        existing_text = "  （无）"
     year = world_state.world_year
 
     # 成熟度门控——通过 subtle 模式让超自然层一直可在场，但前期不显形
@@ -194,11 +200,18 @@ def check_emergence(world_state, pool, recent_events: list,
         f"世界状态：\n{world_state.summary()}\n\n"
         f"{maturity_note}{cooldown_note}\n\n"
         f"近期事件：\n{events_text}\n\n"
-        f"已存在的扩展模块：{existing_text}\n\n"
-        "判断是否有一个全新的系统正在自然涌现。\n"
-        "原则：核心游戏极简（只有时间、人、信仰、玩家干预、NPC 自主），"
-        "任何具体的世界物理（神话、异人、其他神明、疾病、贸易、战争……）都应由模块承担——"
-        "但宁缺毋滥。重复或近义的模块（如已有 ritual_system 还想再开 ceremony_system）一律拒绝。\n"
+        f"已存在的扩展模块（**逐条审视，避免功能重叠**）：\n{existing_text}\n\n"
+        "判断是否有一个全新的系统正在自然涌现。\n\n"
+        "【去重硬规则】\n"
+        "在决定 should_generate 前，先逐一对照上面已存在的每一个模块的描述：\n"
+        "- 若你想生成的系统与任何已存在模块**功能/概念上有显著重叠**（不只是名字像），"
+        "一律返回 should_generate: false，附 reason 说明已被 X 模块覆盖。\n"
+        "- 例：已有 ritual_system 就不该再开 ceremony_system / rite_system / sacred_practice_system；"
+        "已有 contagion_system 就不该再开 mimicry_contagion_system / spread_system / propagation_system。\n"
+        "- 若新功能确实是已有模块的扩展，应通过 NPC 的 system_proposal 升级机制实现，而不是新开一个模块。\n\n"
+        "【其他原则】\n"
+        "核心游戏极简——任何具体的世界物理（神话、异人、其他神明、疾病、贸易、战争……）都应由模块承担，"
+        "但宁缺毋滥。\n"
         "返回 JSON。"
     )
     try:
