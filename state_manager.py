@@ -13,7 +13,7 @@ from core.models import WorldState, MIRACLE_COST, GIFT_COST
 from core.population import Person, PopulationPool
 from llm import (
     get_action_result, generate_initial_population,
-    generate_prayer_response, generate_divine_gaze,
+    generate_prayer_response, generate_divine_gaze, generate_yearly_digest,
     get_error_narrative, get_fix_narrative, get_upgrade_narrative,
 )
 from evolution import ModuleLoader, MetaSystem, MODULES_DIR
@@ -219,24 +219,41 @@ class StateManager:
 
     # ── 回合推进（核心） ──────────────────────────────────────────────────
 
-    def end_of_turn(self) -> list[str]:
+    def end_of_turn(self, *, narrate: bool = True) -> list[str]:
+        """推进一年。
+        narrate=True：把当年原始事件压成一段叙事 digest 返回（玩家可见）。
+        narrate=False：静默推进（catchup / 快进），原始事件仍写入 event_log。
+        无论哪种模式，原始事件都会落到 self.event_log 供 `故事` 命令深挖。
+        """
         faith_bonus = int(sum(p.faith_in_god for p in self.pool.living) * 2)
         self.world.tick_resources(faith_bonus)
 
-        messages = []
+        raw: list[str] = []
         for system in SYSTEMS:
-            messages.extend(system.tick(self))
-        messages.extend(self._tick_modules())
+            raw.extend(system.tick(self))
+        raw.extend(self._tick_modules())
 
-        for m in messages:
+        self.meta.record_turn_events(raw)
+        if self.meta.should_check(self.world.world_year):
+            raw.extend(self.meta.check_and_generate(self, self.loader))
+
+        # 原始事件全部入 event_log（包括 emergence 通告）
+        for m in raw:
             if m.strip():
                 self.add_event(m)
 
-        self.meta.record_turn_events(messages)
-        if self.meta.should_check(self.world.world_year):
-            messages.extend(self.meta.check_and_generate(self, self.loader))
+        if not narrate:
+            return []
 
-        return messages
+        nontrivial = [m for m in raw if m.strip()]
+        if not nontrivial:
+            return []
+
+        digest = generate_yearly_digest(self.world, nontrivial)
+        if digest:
+            return [digest]
+        # 兜底：digest LLM 失败时，直接返回前几条 raw，避免玩家看到空年
+        return nontrivial[:3]
 
     # ── 存档 / 读档 ──────────────────────────────────────────────────────
 

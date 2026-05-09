@@ -1,4 +1,4 @@
-"""神明相关生成：祈祷回应、神明凝视、自询、生活切片。"""
+"""神明相关生成：祈祷回应、神明凝视、自询、生活切片、年度回望。"""
 import json
 from .client import call, USE_MOCK
 from .bible import WORLD_BIBLE
@@ -139,3 +139,42 @@ def generate_oracle_query(question: str, world_state, event_log: list) -> dict:
         return json.loads(call(system, user, max_tokens=500))
     except Exception:
         return {"known": False, "answer": "（神明的意识此刻无法聚焦于这个问题。）"}
+
+
+def generate_yearly_digest(world_state, raw_events: list[str]) -> str:
+    """把当年的多条原始事件压成一段连贯叙事，让玩家读得懂。
+    LLM 失败时返回空串，调用方应有兜底。"""
+    cleaned = [e.strip() for e in raw_events if e and e.strip()]
+    if not cleaned:
+        return ""
+
+    events_text = "\n".join(f"- {e}" for e in cleaned[-25:])
+    schema = '''{
+  "narrative": "一段不超过 100 字的叙事文字"
+}'''
+    system = (
+        WORLD_BIBLE + "\n\n"
+        "你是这个世界的叙事者。把这一年里发生的若干件事，压缩成一段连贯的散文，让玩家读得懂在发生什么。\n\n"
+        "硬性要求：\n"
+        "- 不超过 100 字\n"
+        "- 散文体，感官化，像在讲故事\n"
+        "- 抓 1-2 件最重要的事讲清楚；其余作为背景一笔带过；不重要的可以省略\n"
+        "- 不要罗列事件——把它们融进叙事\n"
+        "- 绝对禁止：方括号【】[]、书名号《》、数字参数（强度0.7）、英文术语 vocalization/symbol_sequence、"
+        "模块名（mutation_system 之类）、「玩家」「神明」「世界」「模块」等元词汇\n"
+        "- 避免重复同义事件——若多条事件描述同一类现象，融合成一句\n"
+        "- 不解释为什么、不点评，只白描发生了什么\n\n"
+        f"只返回如下 JSON：\n{schema}"
+    )
+    user = (
+        f"年份：{world_state.year_display()}（{world_state.current_era}）\n"
+        f"人口：{world_state.population}\n\n"
+        f"这一年发生的原始事件：\n{events_text}\n\n"
+        "压成一段叙事。"
+    )
+    try:
+        result = json.loads(call(system, user, max_tokens=400))
+        return (result.get("narrative") or "").strip()
+    except Exception:
+        return ""
+

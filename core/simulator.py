@@ -36,8 +36,9 @@ class WorldSimulator:
         if catchup_years > 0:
             actual = min(catchup_years, MAX_CATCHUP)
             self.event_queue.put(f"\n  ══ 你离开期间，世界又流逝了 {actual} 年 ══")
+            self.event_queue.put("  原始事件已入档；输入「故事」可逐条翻看那些年。")
             for _ in range(actual):
-                self._tick(silent=False)
+                self._tick(silent=True)
 
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -65,19 +66,20 @@ class WorldSimulator:
         return self.speed_multiplier
 
     def fast_forward(self, years: int) -> int:
-        """主动快进 N 年（阻塞）。返回实际推进的年数。复用 catchup 的静默机制。"""
+        """主动快进 N 年（阻塞）。返回实际推进的年数。
+        静默推进——原始事件入档，不生成每年 digest。玩家可用「故事」命令翻看。"""
         actual = max(0, min(int(years), MAX_CATCHUP))
         if actual <= 0:
             return 0
         with self.lock:
             for _ in range(actual):
-                self._tick(silent=False)
+                self._tick(silent=True)
         self._bg_ticked = True
         return actual
 
     def _tick(self, silent: bool = False):
         with self.lock:
-            msgs = self.sm.end_of_turn()
+            msgs = self.sm.end_of_turn(narrate=not silent)
             if not silent:
                 for m in msgs:
                     if m.strip():
