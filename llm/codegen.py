@@ -151,29 +151,30 @@ def check_emergence(world_state, pool, recent_events: list,
     existing_text = ", ".join(existing_modules) if existing_modules else "无"
     year = world_state.world_year
 
-    # 成熟度 + 现实层级双重门控
+    # 成熟度门控——通过 subtle 模式让超自然层一直可在场，但前期不显形
     if year < 50:
         maturity_note = (
             "【世界仍处于原初混沌期】玩家才刚刚开始理解这个游戏。\n"
-            "**只允许从『现实层』涌现**——玩家凭直觉就能读懂的现象（仪式、神话、贸易、氏族、"
-            "战争、迁徙、瘟疫、先知）。\n"
-            "**严禁**生成『半超自然层』和『全超自然层』的任何系统——"
-            "玩家无法在认知负担下消化『现实裂痕』『时间异常』『意识纠缠』这种抽象概念。\n"
-            "此阶段还要极为克制：除非近期事件中某种系统的迹象**反复且持久**地出现，"
-            "否则一律返回 should_generate: false。"
+            "现实层（仪式、神话、贸易、氏族、战争、迁徙、瘟疫、先知…）可以正常涌现 (subtle=false)，"
+            "玩家凭直觉就能读懂。\n"
+            "超自然层（半超自然 / 全超自然）此阶段**只能以 subtle=true 模式埋下伏笔**——"
+            "静默成形，无通告，模块只产出稀疏感官现象（『井边的水某天浮出说不清的颜色』），"
+            "不动人口/信仰/科技/倾向。这层阶段还很克制：超自然伏笔每隔很多年偶有一笔即可。\n"
+            "此阶段总体也要克制：除非近期事件**反复且持久**地暗示某种系统，否则返回 should_generate: false。"
         )
     elif year < 150:
         maturity_note = (
             "【世界开始有形】玩家已熟悉基本节奏。\n"
-            "现实层可正常涌现；**半超自然层**也开始可以——前提是世界已积累足够信仰活动 / "
-            "重大神迹见证者 / 持续异象。\n"
-            "**全超自然层**仍然禁止——还没到。"
+            "现实层正常涌现 (subtle=false)。\n"
+            "半超自然层可以显形 (subtle=false)——前提是世界已积累信仰活动 / 神迹见证 / 持续异象。\n"
+            "全超自然层仍只能 subtle=true 埋伏笔——还没到显形的时候。"
         )
     else:
         maturity_note = (
-            "【世界已成熟】三层都开放。\n"
-            "涌现密度和层级由你按这个世界自身的节奏判断。"
-            "某些时代可能爆发性出现多个新系统，某些时代沉寂数十年——不必强求平均。"
+            "【世界已成熟】所有层级都可以显形 (subtle=false)。\n"
+            "subtle=true 仍可使用——若你只想悄悄埋一个尚未明朗的种子模块。\n"
+            "涌现密度和层级由你按这个世界自身的节奏判断。某些时代可能爆发性出现多个新系统，"
+            "某些时代沉寂数十年——不必强求平均。"
         )
 
     cooldown_note = ""
@@ -207,16 +208,32 @@ def check_emergence(world_state, pool, recent_events: list,
 
 
 def generate_module_code(module_name: str, reason: str, hint: str,
-                          world_state, pool, api_docs: str = MODULE_API_DOCS) -> str:
+                          world_state, pool, api_docs: str = MODULE_API_DOCS,
+                          subtle: bool = False) -> str:
     people_sample = "\n".join(
         f"  {p.name}（{'、'.join(p.traits)}）：{p.background}"
         for p in pool.living[:6]
     )
     system = _CODE_SYSTEM + f"\n\n可用API文档：\n{api_docs}"
+    if subtle:
+        system += (
+            "\n\n【伏笔模式 (subtle) 额外约束】\n"
+            "你正在生成一个『伏笔』模块——它的存在玩家不会被通告，玩家只能从世界的诡异征兆里偶尔察觉。"
+            "因此：\n"
+            "- on_turn_end **极为稀疏**：大多数年份返回空列表 []。每 8-30 年偶有一条事件即可。\n"
+            "- 事件文本只能是**感官化的诡异现象**：『井边的水某天泛起说不清的颜色，过几日散去』、"
+            "『有牲畜在无风夜同时朝同一方向静立片刻』。\n"
+            "- **绝对不要**调用 world.apply_population_change、不要修改 faith、不要 accumulate_tendency、"
+            "不要 append tech_and_culture_tags。模块完全是只读的——它只观察并产出叙事文本。\n"
+            "- on_action 返回空 dict {}，不响应玩家行动。\n"
+            "- 不在事件文本里使用任何对自己的命名或自指（不要写『一种 xx 力量』、不要给现象起名字）。\n"
+            "- 内部 module_data 可以正常用于跟踪状态，只是不外显。"
+        )
     user = (
         f"世界状态：\n{world_state.summary()}\n\n"
         f"部分居民：\n{people_sample}\n\n"
-        f"需要生成的模块：{module_name}\n涌现原因：{reason}\n系统职责提示：{hint}\n\n"
+        f"需要生成的模块：{module_name}\n涌现原因：{reason}\n系统职责提示：{hint}\n"
+        f"模式：{'伏笔 (subtle)' if subtle else '显形 (system)'}\n\n"
         "编写这个Python模块。直接输出代码，不要任何包裹或解释。"
     )
     client = get_client()

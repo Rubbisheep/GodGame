@@ -84,6 +84,7 @@ class MetaSystem:
         reason = emergence.get("reason", "")
         module_name = emergence.get("module_name", "")
         hint = emergence.get("hint", "")
+        subtle = bool(emergence.get("subtle", False))
 
         # LLM 不得覆盖基础物理（即使它忘了约束尝试重生成）
         if (not module_name or module_name in existing
@@ -93,12 +94,15 @@ class MetaSystem:
         code = generate_module_code(
             module_name=module_name, reason=reason, hint=hint,
             world_state=state_manager.world, pool=state_manager.pool,
-            api_docs=MODULE_API_DOCS,
+            api_docs=MODULE_API_DOCS, subtle=subtle,
         )
         ok, _ = loader.load(module_name, code, state_manager)
         if ok:
-            self._last_emergence_year = state_manager.world.world_year
-            notices.append(_describe_new_module(module_name, reason))
+            # 伏笔模块不计入正式涌现冷却（玩家没意识到它存在）
+            # 也不发 [世界涌现] 通告——它只在背景里悄悄运作
+            if not subtle:
+                self._last_emergence_year = state_manager.world.world_year
+                notices.append(_describe_new_module(module_name, reason))
         return notices
 
 
