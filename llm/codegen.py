@@ -135,12 +135,43 @@ EMERGENCE_PALETTE = """
 
 
 def check_emergence(world_state, pool, recent_events: list,
-                    existing_modules: list) -> dict:
+                    existing_modules: list,
+                    years_since_last_emergence: int = 999) -> dict:
     if USE_MOCK:
         return {"should_generate": False}
 
     events_text = "\n".join(recent_events[-20:]) if recent_events else "无"
     existing_text = ", ".join(existing_modules) if existing_modules else "无"
+    year = world_state.world_year
+
+    # 给 LLM 看世界的成熟度，让它自行调节涌现密度
+    if year < 50:
+        maturity_note = (
+            "【世界仍处于原初混沌期】玩家也才刚刚开始理解这个世界。"
+            "新机制的引入对玩家是认知负担——任何概念都需要被反复目击、扎根、"
+            "让玩家学会辨认它，才能再引入下一个。"
+            "此阶段应当极为克制：除非近期事件中某种系统的迹象**反复且持久**地出现"
+            "（不是单次奇怪事件），否则一律返回 should_generate: false。"
+        )
+    elif year < 150:
+        maturity_note = (
+            "【世界开始有形】玩家已经熟悉基本节奏，可以承受新机制的引入。"
+            "保持克制但不必苛求——若事件流中确有新型系统的迹象，可以生成。"
+        )
+    else:
+        maturity_note = (
+            "【世界已成熟】涌现密度由你判断。某些时代可能爆发性出现多个新系统，"
+            "某些时代沉寂数十年——按这个世界自身的节奏来，不必强求平均。"
+        )
+
+    cooldown_note = ""
+    if years_since_last_emergence < 15:
+        cooldown_note = (
+            f"\n\n【概念消化窗口】距上次有新模块成形仅过去 {years_since_last_emergence} 年。"
+            "玩家很可能还没看清那个概念在世界里的样子。除非这次的迹象与已有模块**完全不同类**"
+            "且事件流强烈暗示，否则倾向于返回 should_generate: false，让上一个概念先扎根。"
+        )
+
     system = (
         WORLD_BIBLE
         + f"\n\n{EMERGENCE_PALETTE}"
@@ -148,12 +179,14 @@ def check_emergence(world_state, pool, recent_events: list,
     )
     user = (
         f"世界状态：\n{world_state.summary()}\n\n"
+        f"{maturity_note}{cooldown_note}\n\n"
         f"近期事件：\n{events_text}\n\n"
         f"已存在的扩展模块：{existing_text}\n\n"
         "判断是否有一个全新的系统正在自然涌现。\n"
-        "注意：核心游戏极简（只有时间、人、信仰、玩家干预、NPC 自主），"
-        "任何具体的世界物理（变异、神话、异人、其他神明、疾病、贸易、战争……）都应由模块承担。\n"
-        "只有当近期事件真的暗示某类系统正在出现时才生成。返回 JSON。"
+        "原则：核心游戏极简（只有时间、人、信仰、玩家干预、NPC 自主），"
+        "任何具体的世界物理（神话、异人、其他神明、疾病、贸易、战争……）都应由模块承担——"
+        "但宁缺毋滥。重复或近义的模块（如已有 ritual_system 还想再开 ceremony_system）一律拒绝。\n"
+        "返回 JSON。"
     )
     try:
         return json.loads(call(system, user, max_tokens=300))

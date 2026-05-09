@@ -8,7 +8,10 @@
 """
 from pathlib import Path
 
-CHECK_INTERVAL = 12  # 涌现节流：每 12 年检查一次有机模块涌现，让世界有时间消化已有概念
+CHECK_INTERVAL = 3            # 检查间隔：每 N 年一次涌现机会（实际是否生成由 LLM 判断）
+MIN_FIRST_CHECK_YEAR = 20     # 婴儿期保护：前 N 年完全不检查涌现，给世界冷启动呼吸空间。
+                              # 没有节流伞，但有一段无涌现的"原初混沌"——世界刚意识到自己存在，
+                              # 连火都未稳定，先让它静一会儿。20 年后才进入正常涌现节奏。
 
 # ── 基础物理：内核保证在场的模块 ─────────────────────────────────────────────
 # 这些不是"可能涌现"的东西，是世界本身就该有的底层物理。
@@ -32,6 +35,7 @@ class MetaSystem:
     def __init__(self):
         self._last_check_year = 0
         self._turn_log: list[str] = []
+        self._last_emergence_year = 0  # 最近一次有新模块成形的年份（基础物理不计）
 
     def record_turn_events(self, events: list[str]):
         self._turn_log.extend(events)
@@ -39,6 +43,8 @@ class MetaSystem:
             self._turn_log = self._turn_log[-50:]
 
     def should_check(self, current_year: int) -> bool:
+        if current_year < MIN_FIRST_CHECK_YEAR:
+            return False
         return (current_year - self._last_check_year) >= CHECK_INTERVAL
 
     def check_and_generate(self, state_manager, loader) -> list[str]:
@@ -68,6 +74,9 @@ class MetaSystem:
             pool=state_manager.pool,
             recent_events=self._turn_log,
             existing_modules=list(existing),
+            years_since_last_emergence=(
+                state_manager.world.world_year - self._last_emergence_year
+            ),
         )
         if not emergence.get("should_generate"):
             return notices
@@ -88,6 +97,7 @@ class MetaSystem:
         )
         ok, _ = loader.load(module_name, code, state_manager)
         if ok:
+            self._last_emergence_year = state_manager.world.world_year
             notices.append(_describe_new_module(module_name, reason))
         return notices
 
