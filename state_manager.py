@@ -219,10 +219,13 @@ class StateManager:
 
     # ── 回合推进（核心） ──────────────────────────────────────────────────
 
-    def end_of_turn(self, *, narrate: bool = True) -> list[str]:
+    def end_of_turn(self, *, narrate: bool = True,
+                    skip_autonomy: bool = False) -> list[str]:
         """推进一年。
         narrate=True：把当年原始事件压成一段叙事 digest 返回（玩家可见）。
-        narrate=False：静默推进（catchup / 快进），原始事件仍写入 event_log。
+        narrate=False：完全静默推进（不生成 digest），原始事件仍写入 event_log。
+        skip_autonomy=True：跳过 autonomy_tick——catchup / fast_forward 期间用，
+            砍掉最贵的那次 NPC 自主行为 LLM 调用。生老病死、祈祷、模块照常跑。
         无论哪种模式，原始事件都会落到 self.event_log 供 `故事` 命令深挖。
         """
         faith_bonus = int(sum(p.faith_in_god for p in self.pool.living) * 2)
@@ -230,6 +233,8 @@ class StateManager:
 
         raw: list[str] = []
         for system in SYSTEMS:
+            if skip_autonomy and system.__name__.split(".")[-1] == "autonomy_tick":
+                continue
             raw.extend(system.tick(self))
         raw.extend(self._tick_modules())
 

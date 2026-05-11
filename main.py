@@ -120,7 +120,15 @@ def run():
         display.console.print(opening, style="italic")
 
     sim = WorldSimulator(manager)
-    sim.start(catchup_years=catchup)
+
+    def _stream_progress(_done, _total):
+        """每完成一年就 drain 一次队列、立刻打印——避免玩家干等。"""
+        events, _ = sim.drain()
+        for e in events:
+            if e.strip():
+                display.print_event(e)
+
+    sim.start(catchup_years=catchup, on_progress=_stream_progress)
 
     cursor = [0]  # 故事已读游标
 
@@ -252,14 +260,17 @@ def run():
                 continue
             display.print_divider()
             display.console.print(
-                f"  [dim]你把注意力下压，迫使时间加速流过{min(years, 100)}年……[/dim]"
+                f"  [dim]你把注意力下压，迫使时间加速流过{min(years, 100)}年……（可 Ctrl+C 中断）[/dim]"
             )
-            actual = sim.fast_forward(years)
+            actual = sim.fast_forward(years, on_progress=_stream_progress)
             display.console.print(
                 f"  ══ 世界推进了 {actual} 年 ══",
                 style="italic dim"
             )
-            _flush_events(sim, manager, cursor, auto_status=True)
+            cursor[0] = len(manager.event_log)  # 流式过程已经显示，标记已读
+            sim.player_query(
+                lambda: display.render_status(manager.world, manager.pool, sim.speed_multiplier)
+            )
 
         # ── 干预指令（推进回合）──────────────────────────────────────────────
         elif cmd in ("赐予", "gift", "give"):

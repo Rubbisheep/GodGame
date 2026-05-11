@@ -32,15 +32,36 @@ class WorldSimulator:
 
     # ── 启动/停止 ───────────────────────────────────────────────────────────
 
-    def start(self, catchup_years: int = 0):
+    def start(self, catchup_years: int = 0, on_progress=None):
+        """启动后台时流。
+        on_progress(year_done, total) 在每年 catchup tick 后调用——
+        调用方应当用它来 drain 事件队列、即时打印，避免玩家干等。
+        catchup 模式跳过 autonomy_tick 以加速；玩家 Ctrl+C 可中断。
+        """
+        self._running = True
+
         if catchup_years > 0:
             actual = min(catchup_years, MAX_CATCHUP)
             self.event_queue.put(f"\n  ══ 你离开期间，世界又流逝了 {actual} 年 ══")
-            self.event_queue.put("  原始事件已入档；输入「故事」可逐条翻看那些年。")
-            for _ in range(actual):
-                self._tick(silent=True)
+            self.event_queue.put("  正在追溯（每年滚动汇报，可 Ctrl+C 跳过）……\n")
+            try:
+                for i in range(actual):
+                    if not self._running:
+                        break
+                    with self.lock:
+                        msgs = self.sm.end_of_turn(narrate=True, skip_autonomy=True)
+                        for m in msgs:
+                            if m.strip():
+                                self.event_queue.put(m)
+                    if on_progress:
+                        on_progress(i + 1, actual)
+            except KeyboardInterrupt:
+                self.event_queue.put(
+                    f"\n  ══ 追溯被中断（停留在第 {self.sm.world.world_year} 年） ══"
+                )
+                if on_progress:
+                    on_progress(actual, actual)
 
-        self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
@@ -65,17 +86,27 @@ class WorldSimulator:
         self.speed_multiplier = max(MIN_SPEED, min(MAX_SPEED, float(multiplier)))
         return self.speed_multiplier
 
-    def fast_forward(self, years: int) -> int:
-        """主动快进 N 年（阻塞）。返回实际推进的年数。
-        静默推进——原始事件入档，不生成每年 digest。玩家可用「故事」命令翻看。"""
+    def fast_forward(self, years: int, on_progress=None) -> int:
+        """主动快进 N 年。返回实际推进的年数（中断时为已完成的年数）。
+        和 catchup 同套机制：每年生成 digest 流式输出、跳 autonomy_tick、可 Ctrl+C 打断。"""
         actual = max(0, min(int(years), MAX_CATCHUP))
         if actual <= 0:
             return 0
-        with self.lock:
-            for _ in range(actual):
-                self._tick(silent=True)
+        completed = 0
+        try:
+            for i in range(actual):
+                with self.lock:
+                    msgs = self.sm.end_of_turn(narrate=True, skip_autonomy=True)
+                    for m in msgs:
+                        if m.strip():
+                            self.event_queue.put(m)
+                completed = i + 1
+                if on_progress:
+                    on_progress(completed, actual)
+        except KeyboardInterrupt:
+            pass
         self._bg_ticked = True
-        return actual
+        return completed
 
     def _tick(self, silent: bool = False):
         with self.lock:
